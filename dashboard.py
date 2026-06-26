@@ -7,8 +7,11 @@ from google import genai
 # --- CONFIGURATION ---
 # Best practice for Streamlit: Don't hardcode API keys. 
 # We'll set a placeholder here, but you can use st.secrets in production.
-API_KEY = "Gemini_API_Key"
-
+try:
+    API_KEY = st.secrets["GEMINI_API_KEY"]
+except KeyError:
+    st.error("API Key not found! Please set GEMINI_API_KEY in Streamlit secrets.")
+    st.stop()
 st.set_page_config(
     page_title="Achuk Flight Analytics",
     page_icon="🚁",
