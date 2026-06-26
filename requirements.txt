@@ -3,5 +3,3 @@ pandas
 plotly
 google-genai
 pymavlink
-tempfile
-os
