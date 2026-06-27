@@ -268,14 +268,14 @@
 
 # else:
 #     st.info("Awaiting telemetry logs. Please upload raw `.tlog` files to map the dynamic tracking vectors.")
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import io
 
 # 1. Page Configuration & Theme Styling
 st.set_page_config(
-    page_title="AeroTrain | Drone Pilot Performance & RPC Tracking",
+    page_title="AeroTrain Pro | Dynamic Drone RPC Analytics",
     page_icon="🛸",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -291,177 +291,210 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. Mock Data Generation (DGCA & Test Pilot Context)
-@st.cache_data
-def load_mock_data():
-    data = [
+# 2. Helper Function to Generate Sample Data
+def generate_sample_csv():
+    sample_data = [
         {"Trainee ID": "TR-001", "Name": "Amit Sharma", "Program": "DGCA 5-Day RPC", "Location": "Bengaluru, India", "Status": "Certified", "Flight Hours": 12.5, "Take-offs": 45, "Landings": 45, "Test Card Dev": 92, "Test Exec": 88, "Data Rep": 90, "Airspace": 95, "DGCA Regs": 94, "Emergency": 100},
         {"Trainee ID": "TR-002", "Name": "Vikram Malhotra", "Program": "Specialized SWITCH UAV", "Location": "Pune, India", "Status": "In-Progress", "Flight Hours": 28.0, "Take-offs": 62, "Landings": 60, "Test Card Dev": 85, "Test Exec": 80, "Data Rep": 78, "Airspace": 88, "DGCA Regs": 85, "Emergency": 90},
         {"Trainee ID": "TR-003", "Name": "Captain Priya Nair", "Program": "Advanced Test-Pilot", "Location": "NTPS, USA", "Status": "Certified", "Flight Hours": 45.2, "Take-offs": 110, "Landings": 110, "Test Card Dev": 96, "Test Exec": 95, "Data Rep": 98, "Airspace": 98, "DGCA Regs": 96, "Emergency": 98},
-        {"Trainee ID": "TR-004", "Name": "Rohan Verma", "Program": "DGCA 5-Day RPC", "Location": "Delhi NCR, India", "Status": "Action Required", "Flight Hours": 4.2, "Take-offs": 15, "Landings": 12, "Test Card Dev": 60, "Test Exec": 55, "Data Rep": 62, "Airspace": 72, "DGCA Regs": 68, "Emergency": 50},
-        {"Trainee ID": "TR-005", "Name": "Ananya Joshi", "Program": "Specialized SWITCH UAV", "Location": "Bengaluru, India", "Status": "In-Progress", "Flight Hours": 18.5, "Take-offs": 38, "Landings": 38, "Test Card Dev": 78, "Test Exec": 82, "Data Rep": 80, "Airspace": 84, "DGCA Regs": 82, "Emergency": 85},
-        {"Trainee ID": "TR-006", "Name": "Suresh Kumar", "Program": "DGCA 5-Day RPC", "Location": "Pune, India", "Status": "Certified", "Flight Hours": 11.8, "Take-offs": 42, "Landings": 42, "Test Card Dev": 88, "Test Exec": 86, "Data Rep": 85, "Airspace": 90, "DGCA Regs": 92, "Emergency": 95}
+        {"Trainee ID": "TR-004", "Name": "Rohan Verma", "Program": "DGCA 5-Day RPC", "Location": "Delhi NCR, India", "Status": "Action Required", "Flight Hours": 4.2, "Take-offs": 15, "Landings": 12, "Test Card Dev": 60, "Test Exec": 55, "Data Rep": 62, "Airspace": 72, "DGCA Regs": 68, "Emergency": 50}
     ]
-    return pd.DataFrame(data)
+    df_sample = pd.DataFrame(sample_data)
+    towrite = io.BytesIO()
+    df_sample.to_csv(towrite, index=False)
+    towrite.seek(0)
+    return towrite
 
-df = load_mock_data()
-
-# 3. Sidebar Navigation & Global Filters
+# 3. Sidebar Configuration & Data Onboarding
 st.sidebar.image("https://img.icons8.com/external-flatart-icons-lineal-color-flatart-icons/128/external-drone-smart-city-flatart-icons-lineal-color-flatart-icons.png", width=70)
-st.sidebar.title("AeroTrain Dashboard")
-st.sidebar.caption("DGCA RPC & Advanced Test Flight Operations")
+st.sidebar.title("AeroTrain Control")
+st.sidebar.caption("DGCA RPC & Advanced Flight Operations")
 st.sidebar.markdown("---")
 
-app_mode = st.sidebar.radio("Navigate to:", ["Dashboard Overview", "Trainee Performance Reports"])
+st.sidebar.subheader("1. Download Input Template")
+st.sidebar.markdown("Get the correctly formatted CSV template to input your drone training metrics.")
+st.sidebar.download_button(
+    label="📥 Download Sample Data CSV",
+    data=generate_sample_csv(),
+    file_name="drone_training_template.csv",
+    mime="text/csv"
+)
 
-# 4. Mode A: Dashboard Overview
-if app_mode == "Dashboard Overview":
-    st.title("🚁 Drone Training Operations Overview")
-    st.markdown("Real-time operational tracking of active Remote Pilot Certificate (RPC) classes and defense flight-test groups.")
-    
-    # KPI Row
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric(label="Active Trainees", value=len(df))
-    with col2:
-        st.metric(label="Total Logged Flight Hours", value=f"{df['Flight Hours'].sum():.1f} hrs")
-    with col3:
-        pass_rate = (len(df[df["Status"] == "Certified"]) / len(df)) * 100
-        st.metric(label="Certification Pass Rate", value=f"{pass_rate:.0f}%")
-    with col4:
-        st.metric(label="Active Locations", value=df["Location"].nunique())
-        
-    st.markdown("### Analytics & Distribution")
-    chart_col1, chart_col2 = st.columns([2, 1])
-    
-    with chart_col1:
-        # Chart: Flight Hours by Program
-        fig_hours = px.bar(
-            df, 
-            x="Program", 
-            y="Flight Hours", 
-            color="Program",
-            title="Flight Hours Logged by Training Track",
-            color_discrete_sequence=px.colors.qualitative.G10
-        )
-        fig_hours.update_layout(showlegend=False, plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig_hours, use_container_width=True)
-        
-    with chart_col2:
-        # Chart: Trainee Status Breakup
-        fig_status = px.pie(
-            df, 
-            names="Status", 
-            title="Certification Readiness Status",
-            hole=0.4,
-            color_discrete_map={"Certified": "#10B981", "In-Progress": "#3B82F6", "Action Required": "#EF4444"}
-        )
-    
-        st.plotly_chart(fig_status, use_container_width=True)
+st.sidebar.markdown("---")
+st.sidebar.subheader("2. Upload Training Data")
+uploaded_file = st.sidebar.file_uploader("Upload your completed training metrics file", type=["csv"])
 
-    # Searchable Master Roster
-    st.markdown("### 📋 Master Trainee Roster")
-    
-    # Filter Controls
-    f_col1, f_col2 = st.columns(2)
-    with f_col1:
-        search_query = st.text_input("🔍 Search trainee by name:", "")
-    with f_col2:
-        selected_program = st.selectbox("Filter by Program Type:", ["All Programs"] + list(df["Program"].unique()))
-        
-    # Apply filters
-    filtered_df = df.copy()
-    if search_query:
-        filtered_df = filtered_df[filtered_df["Name"].str.contains(search_query, case=False)]
-    if selected_program != "All Programs":
-        filtered_df = filtered_df[filtered_df["Program"] == selected_program]
-        
-    st.dataframe(
-        filtered_df[["Trainee ID", "Name", "Program", "Location", "Status", "Flight Hours"]], 
-        use_container_width=True,
-        hide_index=True
-    )
+# Define required columns for strict validation
+REQUIRED_COLUMNS = [
+    "Trainee ID", "Name", "Program", "Location", "Status", 
+    "Flight Hours", "Take-offs", "Landings", "Test Card Dev", 
+    "Test Exec", "Data Rep", "Airspace", "DGCA Regs", "Emergency"
+]
 
-# 5. Mode B: Trainee Performance Reports (Detailed View)
+# 4. Data Processing Engine
+df = None
+if uploaded_file is not None:
+    try:
+        uploaded_df = pd.read_csv(uploaded_file)
+        # Validate schema compliance
+        missing_cols = [col for col in REQUIRED_COLUMNS if col not in uploaded_df.columns]
+        
+        if len(missing_cols) == 0:
+            df = uploaded_df
+            st.sidebar.success("✅ Data parsed successfully!")
+        else:
+            st.sidebar.error(f"❌ Invalid file structure. Missing columns: {', '.join(missing_cols)}")
+    except Exception as e:
+        st.sidebar.error(f"❌ Error loading file: {e}")
+
+# Application Workflow Split
+if df is None:
+    # Onboarding Splash Screen if no file is uploaded
+    st.title("🛸 AeroTrain Analytics Platform")
+    st.info("👈 Please download the data template from the sidebar, populate your metrics, and upload it to generate the reporting environment.")
+    
+    with st.expander("Required Data Schema Specification", expanded=True):
+        st.markdown("""
+        Your uploaded CSV file must contain the following columns exactly as named:
+        * **Trainee ID**: Unique identifier string (e.g., TR-001)
+        * **Name**: Trainee full name
+        * **Program**: Training classification (`DGCA 5-Day RPC`, `Specialized SWITCH UAV`, or `Advanced Test-Pilot`)
+        * **Location**: Operational training location
+        * **Status**: Readiness tier (`Certified`, `In-Progress`, or `Action Required`)
+        * **Flight Hours**: Total flight operational duration (Float/Integer)
+        * **Take-offs / Landings**: Count metrics (Integer)
+        * **Competency Metrics**: `Test Card Dev`, `Test Exec`, `Data Rep` (Percentage values 0-100)
+        * **Regulatory Metrics**: `Airspace`, `DGCA Regs`, `Emergency` (Percentage values 0-100)
+        """)
 else:
-    st.title("📋 Individual Trainee Competency Reports")
-    st.markdown("Access comprehensive automated flight metrics, flight-card execution histories, and regulatory evaluations.")
+    # 5. Core Dashboard Views
+    app_mode = st.sidebar.radio("Navigate Workspace:", ["Dashboard Overview", "Trainee Performance Reports"])
     
-    # Trainee Selector Dropdown
-    trainee_options = {f"{row['Trainee ID']} - {row['Name']}": row['Trainee ID'] for _, row in df.iterrows()}
-    selected_trainee_label = st.selectbox("Select Trainee Profile to View:", list(trainee_options.keys()))
-    trainee_id = trainee_options[selected_trainee_label]
-    
-    # Extract specific trainee details
-    t_data = df[df["Trainee ID"] == trainee_id].iloc[0]
-    
-    # Profile Header Card
-    st.markdown(f"""
-    <div style="background-color: #0f172a; padding: 20px; border-radius: 10px; color: white; margin-bottom: 25px;">
-        <h2 style='margin: 0; color: #38bdf8;'>{t_data['Name']}</h2>
-        <p style='margin: 5px 0 0 0; color: #cbd5e1;'>
-            <strong>ID:</strong> {t_data['Trainee ID']} | 
-            <strong>Track:</strong> {t_data['Program']} | 
-            <strong>Base:</strong> {t_data['Location']} | 
-            <strong>Status:</strong> {t_data['Status']}
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Quick action button toolbar
-    action_col1, action_col2, _ = st.columns([1, 1, 3])
-    with action_col1:
-        if st.button("🔄 Sync Telemetry / SITL Logs", type="secondary", use_container_width=True):
-            st.toast("Autopilot telemetry ecosystem synced successfully!", icon="🛰️")
-    with action_col2:
-        # Mock download feature
-        report_txt = f"Performance Report for {t_data['Name']}\nTrack: {t_data['Program']}\nHours Logged: {t_data['Flight Hours']}"
-        st.download_button("📥 Export PDF Report", data=report_txt, file_name=f"{t_data['Trainee ID']}_report.txt", mime="text/plain", use_container_width=True)
-
-    st.markdown("---")
-
-    # Section A: Automated Flight Logs
-    st.markdown("<div class='section-header'>Section A: Flight Logs (Automated Autopilot Eco-System)</div>", unsafe_allow_html=True)
-    f_col1, f_col2, f_col3 = st.columns(3)
-    with f_col1:
-        st.metric("Total Flight Hours", f"{t_data['Flight Hours']} hrs")
-    with f_col2:
-        st.metric("Log Take-offs", f"{t_data['Take-offs']} flights")
-    with f_col3:
-        st.metric("Log Landings", f"{t_data['Landings']} flights")
+    # Mode A: Dashboard Overview
+    if app_mode == "Dashboard Overview":
+        st.title("🚁 Training Operations Overview")
+        st.markdown("Dynamic operational metrics generated from your uploaded file.")
         
-    # Section B: System Testing & Competency
-    st.markdown("<div class='section-header'>Section B: Flight-Test Execution & Competency</div>", unsafe_allow_html=True)
-    
-    b_col1, b_col2, b_col3 = st.columns(3)
-    with b_col1:
-        st.markdown(f"**Test Card Development** ({t_data['Test Card Dev']}/100)")
-        st.progress(t_data['Test Card Dev'] / 100)
-    with b_col2:
-        st.markdown(f"**Test Execution Matrix** ({t_data['Test Exec']}/100)")
-        st.progress(t_data['Test Exec'] / 100)
-    with b_col3:
-        st.markdown(f"**Data Reporting & Telemetry Logging** ({t_data['Data Rep']}/100)")
-        st.progress(t_data['Data Rep'] / 100)
+        # KPI Bar
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric(label="Active Trainees Uploaded", value=len(df))
+        with col2:
+            st.metric(label="Total Logged Flight Hours", value=f"{df['Flight Hours'].sum():.1f} hrs")
+        with col3:
+            pass_rate = (len(df[df["Status"] == "Certified"]) / len(df)) * 100 if len(df) > 0 else 0
+            st.metric(label="Certification Pass Rate", value=f"{pass_rate:.0f}%")
+        with col4:
+            st.metric(label="Active Training Locations", value=df["Location"].nunique())
+            
+        st.markdown("### Analytics & Distribution")
+        chart_col1, chart_col2 = st.columns([2, 1])
+        
+        with chart_col1:
+            fig_hours = px.bar(
+                df, 
+                x="Program", 
+                y="Flight Hours", 
+                color="Program",
+                title="Cumulative Flight Hours by Program Track",
+                color_discrete_sequence=px.colors.qualitative.G10
+            )
+            fig_hours.update_layout(showlegend=False, plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+            st.plotly_chart(fig_hours, use_container_width=True)
+            
+        with chart_col2:
+            fig_status = px.pie(
+                df, 
+                names="Status", 
+                title="Current Certification Distribution",
+                hole=0.4,
+                color_discrete_map={"Certified": "#10B981", "In-Progress": "#3B82F6", "Action Required": "#EF4444"}
+            )
+            st.plotly_chart(fig_status, use_container_width=True)
 
-    # Section C: Theory & DGCA Regulations
-    st.markdown("<div class='section-header'>Section C: Theory & Regulatory Assessments</div>", unsafe_allow_html=True)
-    
-    c_col1, c_col2, c_col3 = st.columns(3)
-    with c_col1:
-        st.markdown(
-            f"<div class='report-box'><p style='margin:0;color:#64748b;'>Airspace Rules Mapping</p><h2 style='margin:0;color:#0284c7;'>{t_data['Airspace']}%</h2></div>", 
-            unsafe_allow_html=True
+        # Roster Interaction Matrix
+        st.markdown("### 📋 Filterable Master Roster")
+        f_col1, f_col2 = st.columns(2)
+        with f_col1:
+            search_query = st.text_input("🔍 Search trainee by name:", "")
+        with f_col2:
+            selected_program = st.selectbox("Filter by Program Type:", ["All Programs"] + list(df["Program"].unique()))
+            
+        filtered_df = df.copy()
+        if search_query:
+            filtered_df = filtered_df[filtered_df["Name"].str.contains(search_query, case=False)]
+        if selected_program != "All Programs":
+            filtered_df = filtered_df[filtered_df["Program"] == selected_program]
+            
+        st.dataframe(
+            filtered_df[["Trainee ID", "Name", "Program", "Location", "Status", "Flight Hours"]], 
+            use_container_width=True,
+            hide_index=True
         )
-    with c_col2:
-        st.markdown(
-            f"<div class='report-box'><p style='margin:0;color:#64748b;'>DGCA Regulations Compliance</p><h2 style='margin:0;color:#0284c7;'>{t_data['DGCA Regs']}%</h2></div>", 
-            unsafe_allow_html=True
-        )
-    with c_col3:
-        # Highlight emergency procedures check visually
-        color_alert = "#10B981" if t_data['Emergency'] >= 85 else "#EF4444"
-        st.markdown(
-            f"<div class='report-box'><p style='margin:0;color:#64748b;'>Emergency Handling Rating</p><h2 style='margin:0;color:{color_alert};'>{t_data['Emergency']}%</h2></div>", 
-            unsafe_allow_html=True
-        )
+
+    # Mode B: Trainee Performance Reports
+    else:
+        st.title("📋 Individual Trainee Competency Reports")
+        st.markdown("Granular metric isolation from telemetry and regulation scores.")
+        
+        trainee_options = {f"{row['Trainee ID']} - {row['Name']}": row['Trainee ID'] for _, row in df.iterrows()}
+        selected_trainee_label = st.selectbox("Select Target Profile:", list(trainee_options.keys()))
+        trainee_id = trainee_options[selected_trainee_label]
+        
+        t_data = df[df["Trainee ID"] == trainee_id].iloc[0]
+        
+        st.markdown(f"""
+        <div style="background-color: #0f172a; padding: 20px; border-radius: 10px; color: white; margin-bottom: 25px;">
+            <h2 style='margin: 0; color: #38bdf8;'>{t_data['Name']}</h2>
+            <p style='margin: 5px 0 0 0; color: #cbd5e1;'>
+                <strong>ID:</strong> {t_data['Trainee ID']} | 
+                <strong>Track:</strong> {t_data['Program']} | 
+                <strong>Operational Hub:</strong> {t_data['Location']} | 
+                <strong>Status:</strong> {t_data['Status']}
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        action_col1, action_col2, _ = st.columns([1, 1, 3])
+        with action_col1:
+            if st.button("🔄 Sync Telemetry Logs", type="secondary", use_container_width=True):
+                st.toast(f"Re-aligned telemetry log references for user {t_data['Trainee ID']}", icon="🛰️")
+        with action_col2:
+            report_txt = f"Performance Summary Report\n====================\nTrainee: {t_data['Name']} ({t_data['Trainee ID']})\nProgram: {t_data['Program']}\nLogged Flight Time: {t_data['Flight Hours']} Hours"
+            st.download_button("📥 Export Text Summary", data=report_txt, file_name=f"Report_{t_data['Trainee ID']}.txt", mime="text/plain", use_container_width=True)
+
+        st.markdown("---")
+
+        # Section A: Telemetry Analytics
+        st.markdown("<div class='section-header'>Section A: Flight Logs (Automated Autopilot Eco-System)</div>", unsafe_allow_html=True)
+        f_col1, f_col2, f_col3 = st.columns(3)
+        with f_col1:
+            st.metric("Total Flight Hours", f"{t_data['Flight Hours']} hrs")
+        with f_col2:
+            st.metric("Log Take-offs", f"{int(t_data['Take-offs'])} flights")
+        with f_col3:
+            st.metric("Log Landings", f"{int(t_data['Landings'])} flights")
+            
+        # Section B: Competency Matrices
+        st.markdown("<div class='section-header'>Section B: Flight-Test Execution & Competency</div>", unsafe_allow_html=True)
+        b_col1, b_col2, b_col3 = st.columns(3)
+        with b_col1:
+            st.markdown(f"**Test Card Development** ({int(t_data['Test Card Dev'])}/100)")
+            st.progress(int(t_data['Test Card Dev']) / 100)
+        with b_col2:
+            st.markdown(f"**Test Execution Matrix** ({int(t_data['Test Exec'])}/100)")
+            st.progress(int(t_data['Test Exec']) / 100)
+        with b_col3:
+            st.markdown(f"**Data Reporting Metrics** ({int(t_data['Data Rep'])}/100)")
+            st.progress(int(t_data['Data Rep']) / 100)
+
+        # Section C: Theory Assessments
+        st.markdown("<div class='section-header'>Section C: Theory & Regulatory Assessments</div>", unsafe_allow_html=True)
+        c_col1, c_col2, c_col3 = st.columns(3)
+        with c_col1:
+            st.markdown(f"<div class='report-box'><p style='margin:0;color:#64748b;'>Airspace Mapping</p><h2 style='margin:0;color:#0284c7;'>{int(t_data['Airspace'])}%</h2></div>", unsafe_allow_html=True)
+        with c_col2:
+            st.markdown(f"<div class='report-box'><p style='margin:0;color:#64748b;'>DGCA Compliance</p><h2 style='margin:0;color:#0284c7;'>{int(t_data['DGCA Regs'])}%</h2></div>", unsafe_allow_html=True)
+        with c_col3:
+            color_alert = "#10B981" if t_data['Emergency'] >= 85 else "#EF4444"
+            st.markdown(f"<div class='report-box'><p style='margin:0;color:#64748b;'>Emergency Response</p><h2 style='margin:0;color:{color_alert};'>{int(t_data['Emergency'])}%</h2></div>", unsafe_allow_html=True)
