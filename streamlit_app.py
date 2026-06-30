@@ -671,7 +671,7 @@ if not trainees:
     st.markdown("""
     The framework maps metrics dynamically using explicit naming constraints. Rename files before ingestion to register trainees naturally:
     * `Dhinesh Kumar.ulog` $\\rightarrow$ Parses mechanical attitude matrices for **Dhinesh Kumar**.
-    * `Dhinesh Kumar.tlog` $\\rightarrow$ Extracts path planning and failsafe events for **Bomma Saketha**.
+    * `Dhinesh Kumar.tlog` $\\rightarrow$ Extracts path planning and failsafe events for **Dhinesh Kumar**.
     """)
 else:
     st.sidebar.markdown("---")
