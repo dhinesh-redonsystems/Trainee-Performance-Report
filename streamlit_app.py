@@ -832,6 +832,353 @@
 # Version 4
 
 
+# import streamlit as st
+# import pandas as pd
+# import plotly.graph_objects as go
+# import numpy as np
+# import os
+
+# # 1. Page Configuration & Aerospace Dark Theme
+# st.set_page_config(page_title="Flyght Cloud | Dual-Log Analytics", layout="wide", initial_sidebar_state="expanded")
+
+# st.markdown("""
+#     <style>
+#     /* Global Dark Aerospace Theme */
+#     .stApp { background-color: #040d1a; color: #cbd5e1; }
+#     header { visibility: hidden; }
+#     section[data-testid="stSidebar"] { background-color: #0a1424; border-right: 1px solid #1e293b; }
+    
+#     /* Dynamic Metric Containers */
+#     div[data-testid="metric-container"] {
+#         background-color: #0c1a2d; border: 1px solid #1e293b; padding: 15px;
+#         border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+#     }
+#     div[data-testid="metric-container"] label { color: #94a3b8 !important; font-size: 0.85rem; font-weight: 600; }
+#     div[data-testid="metric-container"] div { color: #38bdf8 !important; font-weight: 700; }
+    
+#     /* Offline / Empty State Containers */
+#     .offline-box {
+#         background-color: #0a1424; border: 1px dashed #334155; border-radius: 8px;
+#         padding: 40px 20px; text-align: center; color: #64748b; margin-bottom: 20px;
+#     }
+#     .offline-text { font-size: 1.1rem; font-weight: 600; letter-spacing: 1px; color: #475569; }
+    
+#     /* Navigation Elements */
+#     .stTabs [data-baseweb="tab-list"] { background-color: #0c1a2d; border-radius: 8px; padding: 5px; gap: 10px; border: 1px solid #1e293b; }
+#     .stTabs [data-baseweb="tab"] { color: #64748b; padding: 10px 20px; border-radius: 6px; font-weight: 500; }
+#     .stTabs [aria-selected="true"] { background-color: #1e293b !important; color: #38bdf8 !important; }
+    
+#     /* Custom Components */
+#     .trainee-banner {
+#         background-color: #0c1a2d; border: 1px solid #1e293b; border-radius: 8px;
+#         padding: 20px; display: flex; justify-content: space-between; align-items: center;
+#         margin-bottom: 25px;
+#     }
+#     .badge-on { background-color: rgba(16, 185, 129, 0.15); color: #10b981; padding: 5px 12px; border-radius: 15px; font-size: 0.8rem; border: 1px solid rgba(16, 185, 129, 0.3); font-weight: 600; margin-left: 8px;}
+#     .badge-off { background-color: rgba(239, 68, 68, 0.1); color: #ef4444; padding: 5px 12px; border-radius: 15px; font-size: 0.8rem; border: 1px solid rgba(239, 68, 68, 0.3); font-weight: 600; margin-left: 8px;}
+#     .emergency-box { background-color: #0c1a2d; border: 1px solid #334155; border-radius: 8px; padding: 20px; }
+#     .timeline-item { font-size: 0.85rem; padding: 4px 0; border-left: 2px solid #1e293b; padding-left: 12px; margin-left: 6px; }
+#     </style>
+# """, unsafe_allow_html=True)
+
+# # 2. Modular Telemetry Engines
+# @st.cache_data
+# def parse_ulog(trainee_name):
+#     np.random.seed(sum([ord(c) for c in trainee_name]))
+#     timesteps = 120
+#     time_array = np.linspace(0, 15 * 60, timesteps)
+#     skill_factor = np.random.uniform(0.5, 3.5)
+    
+#     altitude = np.abs((np.sin(time_array / 100) * 300) + np.random.normal(0, 4, timesteps) + 10)
+    
+#     roll_cmd = np.sin(time_array / 10) * 15
+#     pitch_cmd = np.cos(time_array / 12) * 12
+#     roll_act = roll_cmd + np.random.normal(0, skill_factor, timesteps)
+#     pitch_act = pitch_cmd + np.random.normal(0, skill_factor, timesteps)
+    
+#     stick_diff = np.diff(roll_act)
+#     erratic_events = int(np.sum(np.abs(stick_diff) > (3.5 / skill_factor)))
+    
+#     df = pd.DataFrame({"Time (s)": time_array, "Roll CMD": roll_cmd, "Pitch CMD": pitch_cmd, "Roll ACT": roll_act, "Pitch ACT": pitch_act, "Altitude (ft)": altitude})
+#     metrics = {"max_alt": float(np.max(altitude)), "erratic_events": erratic_events, "attitude_dev": np.mean(np.abs(roll_cmd - roll_act)), "loop_rate": 400 if skill_factor > 1.5 else 250, "smoothness": "Excellent" if erratic_events <= 2 else ("Fair" if erratic_events <= 6 else "Erratic Inputs")}
+#     return df, metrics
+
+# @st.cache_data
+# def parse_tlog(trainee_name):
+#     # Seed generator uniquely to this file/trainee
+#     np.random.seed(sum([ord(c) for c in trainee_name]) + 999)
+    
+#     # 2D Spatial Route Generation
+#     wp_x = [10, 25, 60, 90, 65, 30, 10]
+#     wp_y = [85, 55, 45, 25, 15, 35, 85]
+#     wp_labels = ["HOME", "WP1", "WP2", "WP3", "WP4", "WP5", "HOME"]
+    
+#     planned_x, planned_y = [], []
+#     points_per_leg = 20
+#     for i in range(len(wp_x)-1):
+#         planned_x.extend(np.linspace(wp_x[i], wp_x[i+1], points_per_leg))
+#         planned_y.extend(np.linspace(wp_y[i], wp_y[i+1], points_per_leg))
+        
+#     actual_x = planned_x + np.random.normal(0, 1.2, len(planned_x))
+#     actual_y = planned_y + np.random.normal(0, 1.5, len(planned_y))
+#     max_drift = float(np.max(np.sqrt((actual_x - planned_x)**2 + (actual_y - planned_y)**2)))
+
+#     # --- NEW DYNAMIC TIMELINE GENERATION ---
+#     duration_minutes = float(np.random.uniform(8.5, 22.0))
+#     total_time_seconds = duration_minutes * 60
+    
+#     # Generate sequential time events
+#     t_armed = 0.0
+#     t_wp2 = np.random.uniform(30.0, 90.0)
+#     t_degraded = t_wp2 + np.random.uniform(60.0, 150.0)
+#     t_lost = t_degraded + np.random.uniform(30.0, 120.0)
+#     failsafe_time = np.random.uniform(3.2, 7.8)
+    
+#     # Failsafe bounds check to ensure event fits inside total mission time
+#     if t_lost > total_time_seconds - 60:
+#         t_lost = total_time_seconds - 120
+    
+#     t_rtl = t_lost + failsafe_time
+#     t_land = total_time_seconds
+
+#     # Helper function to format time (e.g., T+04:12.0)
+#     def format_time(secs):
+#         mins = int(secs // 60)
+#         s = secs % 60
+#         return f"T+{mins:02d}:{s:04.1f}"
+    
+#     # Calculate exactly where the drone was on the 2D plane when link was lost
+#     time_ratio = t_lost / total_time_seconds
+#     total_points = len(actual_x)
+#     event_idx = int(time_ratio * total_points)
+#     event_idx = min(max(event_idx, 0), total_points - 1) # Bounds check
+    
+#     event_x = actual_x[event_idx]
+#     event_y = actual_y[event_idx]
+
+#     # Data payloads
+#     df_path = pd.DataFrame({"Planned X": planned_x, "Planned Y": planned_y, "Actual X": actual_x, "Actual Y": actual_y})
+#     df_wp = pd.DataFrame({"X": wp_x, "Y": wp_y, "Label": wp_labels})
+    
+#     metrics = {
+#         "duration_min": duration_minutes, 
+#         "max_drift": max_drift, 
+#         "failsafe_time": failsafe_time,
+#         "geofence": "Green Zone" if max_drift < 12.0 else "Boundary Excursion",
+#         "event_x": event_x,
+#         "event_y": event_y,
+#         "rssi": int(np.random.uniform(-95, -72)),
+#         "t_armed": format_time(t_armed),
+#         "t_wp2": format_time(t_wp2),
+#         "t_degraded": format_time(t_degraded),
+#         "t_lost": format_time(t_lost),
+#         "t_rtl": format_time(t_rtl),
+#         "t_land": format_time(t_land)
+#     }
+    
+#     return df_path, df_wp, metrics
+
+# def render_empty_state(module_name, required_file):
+#     st.markdown(f"""
+#         <div class="offline-box">
+#             <h3 style="color: #475569; margin-bottom: 5px;">⚠️ {module_name} OFFLINE</h3>
+#             <p class="offline-text">Awaiting <code>{required_file}</code> file upload for this trainee.</p>
+#         </div>
+#     """, unsafe_allow_html=True)
+
+# # 3. Sidebar UI & Unified Filename Ingestion
+# st.sidebar.markdown("<h3 style='color: #38bdf8; margin-top: 0;'>FLYGHT CLOUD</h3>", unsafe_allow_html=True)
+# st.sidebar.markdown("---")
+
+# uploaded_files = st.sidebar.file_uploader(
+#     "DROP .ulog / .bin / .tlog", 
+#     type=["ulog", "ulg", "tlog", "bin"], 
+#     accept_multiple_files=True,
+#     label_visibility="collapsed"
+# )
+
+# trainees = {}
+
+# if uploaded_files:
+#     for f in uploaded_files:
+#         raw_name = os.path.splitext(f.name)[0].replace("_", " ").replace("-", " ").title()
+#         file_ext = os.path.splitext(f.name)[1].lower()
+        
+#         if raw_name not in trainees:
+#             trainees[raw_name] = {"ULOG": False, "TLOG": False}
+            
+#         if file_ext in ['.ulog', '.ulg', '.bin']:
+#             trainees[raw_name]["ULOG"] = True
+#         else:
+#             trainees[raw_name]["TLOG"] = True
+
+# # 4. Main Application Rendering
+# if not trainees:
+#     st.title("System Standby")
+#     st.info("Upload logs in the sidebar. The UI will instantly process the telemetry into visual paths and exact dynamic timelines.")
+# else:
+#     st.sidebar.markdown("---")
+#     st.sidebar.markdown("<div style='color: #38bdf8; font-size: 0.75rem; font-weight:700; margin-bottom: 10px;'>👤 MANAGED TRAINING DIRECTORY</div>", unsafe_allow_html=True)
+#     selected_trainee = st.sidebar.radio("Active Profiles", list(trainees.keys()), label_visibility="collapsed")
+    
+#     profile = trainees[selected_trainee]
+#     has_ulg = profile["ULOG"]
+#     has_tlog = profile["TLOG"]
+    
+#     ulg_data, ulg_metrics = parse_ulog(selected_trainee) if has_ulg else (None, None)
+#     tlog_path, tlog_wp, tlog_metrics = parse_tlog(selected_trainee) if has_tlog else (None, None, None)
+
+#     ulg_badge = '<span class="badge-on">⚙️ .ULOG ACTIVE</span>' if has_ulg else '<span class="badge-off">⚙️ .ULOG MISSING</span>'
+#     tlog_badge = '<span class="badge-on">📡 .TLOG ACTIVE</span>' if has_tlog else '<span class="badge-off">📡 .TLOG MISSING</span>'
+
+#     st.markdown(f"""
+#         <div class="trainee-banner">
+#             <div>
+#                 <h3 style="margin:0; color: white; font-weight:700;">{selected_trainee}</h3>
+#                 <p style="margin:5px 0 0 0; color: #64748b; font-size: 0.85rem;">COMBINED FLIGHT ANALYSIS PROFILE</p>
+#             </div>
+#             <div>{ulg_badge} {tlog_badge}</div>
+#         </div>
+#     """, unsafe_allow_html=True)
+
+#     tab1, tab2, tab3 = st.tabs(["⚙️ MECHANICAL PROFICIENCY .ULOG", "📡 GCS MISSION COORDINATION .TLOG", "🛡️ DGCA OFFICIAL AUDIT REPORT"])
+    
+#     # --- TAB 1: ULOG DEPENDENT ---
+#     with tab1:
+#         if has_ulg:
+#             c1, c2, c3 = st.columns(3)
+#             with c1: st.metric("PILOT SMOOTHNESS FACTOR", ulg_metrics['smoothness'], f"{ulg_metrics['erratic_events']} ERRATIC EVENTS", delta_color="inverse" if ulg_metrics['erratic_events'] > 2 else "normal")
+#             with c2: st.metric("ATTITUDE DEVIATION INDEX", f"{ulg_metrics['attitude_dev']:.2f}°", "MEAN CMD ➔ ACTUAL DELTA", delta_color="off")
+#             with c3: st.metric("CONTROL LOOP RATE", f"{ulg_metrics['loop_rate']} Hz", "PX4 IMU FILTER ACTIVE", delta_color="off")
+                
+#             fig_mech = go.Figure()
+#             fig_mech.add_trace(go.Scatter(x=ulg_data["Time (s)"], y=ulg_data["Roll CMD"], mode='lines', name='Roll Target', line=dict(color='#0ea5e9')))
+#             fig_mech.add_trace(go.Scatter(x=ulg_data["Time (s)"], y=ulg_data["Roll ACT"], mode='lines', name='Roll Actual', line=dict(color='#ec4899')))
+#             fig_mech.update_layout(title="ACTUATOR OUTPUT VS COMMAND", plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#94a3b8'), margin=dict(l=10, r=10, t=50, b=10))
+#             fig_mech.update_xaxes(showgrid=True, gridcolor='#1e293b')
+#             fig_mech.update_yaxes(showgrid=True, gridcolor='#1e293b')
+#             st.plotly_chart(fig_mech, use_container_width=True)
+#         else:
+#             render_empty_state("MECHANICAL PROFICIENCY", ".ulog / .bin")
+
+#     # --- TAB 2: TLOG DEPENDENT ---
+#     with tab2:
+#         if has_tlog:
+#             col_map, col_time = st.columns([2.2, 1])
+#             with col_map:
+#                 st.markdown("<div style='color: #38bdf8; font-size:0.9rem; font-weight:600; margin-bottom: 10px; letter-spacing: 1px;'>2D FLIGHT PATH • PLANNED VS ACTUAL</div>", unsafe_allow_html=True)
+                
+#                 fig_spatial = go.Figure()
+                
+#                 fig_spatial.add_trace(go.Scatter(
+#                     x=tlog_path["Planned X"], y=tlog_path["Planned Y"], 
+#                     mode='lines', name='PLANNED WAYPOINTS', 
+#                     line=dict(color='#0ea5e9', dash='dash', width=2)
+#                 ))
+                
+#                 fig_spatial.add_trace(go.Scatter(
+#                     x=tlog_path["Actual X"], y=tlog_path["Actual Y"], 
+#                     mode='lines', name='ACTUAL TRAJECTORY', 
+#                     line=dict(color='#ec4899', width=1.5)
+#                 ))
+                
+#                 fig_spatial.add_trace(go.Scatter(
+#                     x=tlog_wp["X"], y=tlog_wp["Y"], 
+#                     mode='markers+text', name='WAYPOINT MARKER',
+#                     marker=dict(color='#050e1a', size=10, line=dict(color='#eab308', width=2)),
+#                     text=tlog_wp["Label"], textposition="top right", 
+#                     textfont=dict(color='#eab308', size=10, weight='bold')
+#                 ))
+
+#                 # Now passing dynamic timestamp directly into the text element
+#                 fig_spatial.add_trace(go.Scatter(
+#                     x=[tlog_metrics["event_x"]], y=[tlog_metrics["event_y"]], 
+#                     mode='markers+text', name='FAILSAFE EVENT',
+#                     marker=dict(color='#050e1a', size=14, line=dict(color='#ef4444', width=2)),
+#                     text=[f'❗ LOST LINK {tlog_metrics["t_lost"]}'], textposition="middle right", 
+#                     textfont=dict(color='#ef4444', size=11, weight='bold'),
+#                     showlegend=False
+#                 ))
+
+#                 fig_spatial.update_layout(
+#                     plot_bgcolor='#050e1a', paper_bgcolor='rgba(0,0,0,0)', 
+#                     font=dict(color='#64748b'), margin=dict(l=10, r=10, t=10, b=10), 
+#                     xaxis=dict(showgrid=True, gridcolor='#1e293b', zeroline=False, showticklabels=False), 
+#                     yaxis=dict(showgrid=True, gridcolor='#1e293b', zeroline=False, showticklabels=False, scaleanchor="x", scaleratio=1),
+#                     legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="left", x=0),
+#                     height=500
+#                 )
+
+#                 fig_spatial.add_annotation(
+#                     x=0.95, y=0.95, xref="paper", yref="paper",
+#                     text="N<br>| <br>W -- + -- E<br>|<br>S",
+#                     showarrow=False, font=dict(family="monospace", size=10, color="#94a3b8"),
+#                     align="center", bgcolor="#0c1a2d", bordercolor="#1e293b", borderwidth=1, borderpad=5
+#                 )
+
+#                 st.plotly_chart(fig_spatial, use_container_width=True)
+                
+#             with col_time:
+#                 is_breached = tlog_metrics["failsafe_time"] > 6.0
+#                 border_color = '#b91c1c' if is_breached else '#1e293b'
+                
+#                 # Using implicit string concatenation to completely eliminate Markdown indentation issues
+#                 html_timeline = (
+#                     f'<div class="emergency-box" style="border: 1px solid {border_color}; margin-top: 30px;">'
+#                     f'<h5 style="color: #38bdf8; margin-top: 0; font-size: 0.9rem; letter-spacing: 1px;">⚠️ EMERGENCY ASSESSMENT • LINK FAILSAFE</h5>'
+#                     f'<p style="color: #64748b; font-size: 0.8rem; margin: 15px 0 0 0;">FAILSAFE REACTION TIME</p>'
+#                     f'<h1 style="color: white; margin: 5px 0; font-size: 2.5rem;">{tlog_metrics["failsafe_time"]:.2f} <span style="color:#f43f5e; font-size: 1.2rem;">s</span></h1>'
+#                     f'<p style="color: #94a3b8; font-size: 0.75rem;">EVENT TRIGGER ➔ RTL EXECUTION • TARGET ≤ 6.0 S</p>'
+#                     f'<hr style="border-color: #1e293b; margin: 25px 0 15px 0;">'
+#                     f'<div class="timeline-item"><span style="color: #10b981;">●</span> Mission Armed - Auto Take-off <span style="float:right; color:#64748b;">{tlog_metrics["t_armed"]}</span></div>'
+#                     f'<div class="timeline-item"><span style="color: #10b981;">●</span> Waypoint 2 Reached - Nominal <span style="float:right; color:#64748b;">{tlog_metrics["t_wp2"]}</span></div>'
+#                     f'<div class="timeline-item"><span style="color: #eab308;">●</span> GCS Link Degraded (RSSI {tlog_metrics["rssi"]} dBm) <span style="float:right; color:#64748b;">{tlog_metrics["t_degraded"]}</span></div>'
+#                     f'<div class="timeline-item"><span style="color: #ef4444;">●</span> LOST LINK - Failsafe Triggered <span style="float:right; color:#64748b;">{tlog_metrics["t_lost"]}</span></div>'
+#                     f'<div class="timeline-item"><span style="color: #eab308;">●</span> Trainee Engaged RTL Protocol <span style="float:right; color:#64748b;">{tlog_metrics["t_rtl"]}</span></div>'
+#                     f'<div class="timeline-item"><span style="color: #10b981;">●</span> Auto-Landing - Home Reached <span style="float:right; color:#64748b;">{tlog_metrics["t_land"]}</span></div>'
+#                     f'</div>'
+#                 )
+                
+#                 st.markdown(html_timeline, unsafe_allow_html=True)
+#         else:
+#             render_empty_state("GCS MISSION COORDINATION", ".tlog")
+
+#     # --- TAB 3: COMBINED AUDIT REPORT ---
+#     with tab3:
+#         st.markdown("<h4 style='color: #38bdf8; margin-bottom: 25px;'>Combined Flight Audit & Compliance Record</h4>", unsafe_allow_html=True)
+#         aud_c1, aud_c2 = st.columns(2)
+        
+#         with aud_c1:
+#             if has_ulg:
+#                 ceiling_flag = "BREACH" if ulg_metrics["max_alt"] > 400 else "PASSED"
+#                 st.metric("FLIGHT CEILING CHECK", f"{ulg_metrics['max_alt']:.1f} ft AGL", f"DGCA LIMIT: 400 FT ({ceiling_flag})", delta_color="inverse" if ulg_metrics["max_alt"] > 400 else "normal")
+#             else:
+#                 st.metric("FLIGHT CEILING CHECK", "N/A", "Requires .ULOG data")
+                
+#         with aud_c2:
+#             if has_tlog:
+#                 st.metric("FLIGHT TIME LOG", f"{tlog_metrics['duration_min']:.2f} min", "WITHIN SESSION QUOTA LIMITS", delta_color="normal")
+#             else:
+#                 st.metric("FLIGHT TIME LOG", "N/A", "Requires .TLOG data")
+                
+#         st.write("") 
+#         aud_c3, aud_c4 = st.columns(2)
+        
+#         with aud_c3:
+#             if has_tlog:
+#                 st.metric("GEO-FENCING VALIDATOR", tlog_metrics["geofence"], f"MAX SPATIAL BOUNDARY DEVIATION: {tlog_metrics['max_drift']:.1f} M", delta_color="normal" if tlog_metrics["geofence"] == "Green Zone" else "inverse")
+#             else:
+#                 st.metric("GEO-FENCING VALIDATOR", "N/A", "Requires .TLOG data")
+                
+#         with aud_c4:
+#             if has_tlog:
+#                 st.metric("FAILSAFE REACTION TIME", f"{tlog_metrics['failsafe_time']:.2f} s", "TARGET REQUIREMENT ≤ 6.0 S", delta_color="inverse" if tlog_metrics['failsafe_time'] > 6.0 else "normal")
+#             else:
+#                 st.metric("FAILSAFE REACTION TIME", "N/A", "Requires .TLOG data")
+
+# Version 5
+
+
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -843,37 +1190,21 @@ st.set_page_config(page_title="Flyght Cloud | Dual-Log Analytics", layout="wide"
 
 st.markdown("""
     <style>
-    /* Global Dark Aerospace Theme */
     .stApp { background-color: #040d1a; color: #cbd5e1; }
     header { visibility: hidden; }
     section[data-testid="stSidebar"] { background-color: #0a1424; border-right: 1px solid #1e293b; }
-    
-    /* Dynamic Metric Containers */
     div[data-testid="metric-container"] {
         background-color: #0c1a2d; border: 1px solid #1e293b; padding: 15px;
         border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
     }
     div[data-testid="metric-container"] label { color: #94a3b8 !important; font-size: 0.85rem; font-weight: 600; }
     div[data-testid="metric-container"] div { color: #38bdf8 !important; font-weight: 700; }
-    
-    /* Offline / Empty State Containers */
-    .offline-box {
-        background-color: #0a1424; border: 1px dashed #334155; border-radius: 8px;
-        padding: 40px 20px; text-align: center; color: #64748b; margin-bottom: 20px;
-    }
+    .offline-box { background-color: #0a1424; border: 1px dashed #334155; border-radius: 8px; padding: 40px 20px; text-align: center; color: #64748b; margin-bottom: 20px; }
     .offline-text { font-size: 1.1rem; font-weight: 600; letter-spacing: 1px; color: #475569; }
-    
-    /* Navigation Elements */
     .stTabs [data-baseweb="tab-list"] { background-color: #0c1a2d; border-radius: 8px; padding: 5px; gap: 10px; border: 1px solid #1e293b; }
     .stTabs [data-baseweb="tab"] { color: #64748b; padding: 10px 20px; border-radius: 6px; font-weight: 500; }
     .stTabs [aria-selected="true"] { background-color: #1e293b !important; color: #38bdf8 !important; }
-    
-    /* Custom Components */
-    .trainee-banner {
-        background-color: #0c1a2d; border: 1px solid #1e293b; border-radius: 8px;
-        padding: 20px; display: flex; justify-content: space-between; align-items: center;
-        margin-bottom: 25px;
-    }
+    .trainee-banner { background-color: #0c1a2d; border: 1px solid #1e293b; border-radius: 8px; padding: 20px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
     .badge-on { background-color: rgba(16, 185, 129, 0.15); color: #10b981; padding: 5px 12px; border-radius: 15px; font-size: 0.8rem; border: 1px solid rgba(16, 185, 129, 0.3); font-weight: 600; margin-left: 8px;}
     .badge-off { background-color: rgba(239, 68, 68, 0.1); color: #ef4444; padding: 5px 12px; border-radius: 15px; font-size: 0.8rem; border: 1px solid rgba(239, 68, 68, 0.3); font-weight: 600; margin-left: 8px;}
     .emergency-box { background-color: #0c1a2d; border: 1px solid #334155; border-radius: 8px; padding: 20px; }
@@ -888,14 +1219,11 @@ def parse_ulog(trainee_name):
     timesteps = 120
     time_array = np.linspace(0, 15 * 60, timesteps)
     skill_factor = np.random.uniform(0.5, 3.5)
-    
     altitude = np.abs((np.sin(time_array / 100) * 300) + np.random.normal(0, 4, timesteps) + 10)
-    
     roll_cmd = np.sin(time_array / 10) * 15
     pitch_cmd = np.cos(time_array / 12) * 12
     roll_act = roll_cmd + np.random.normal(0, skill_factor, timesteps)
     pitch_act = pitch_cmd + np.random.normal(0, skill_factor, timesteps)
-    
     stick_diff = np.diff(roll_act)
     erratic_events = int(np.sum(np.abs(stick_diff) > (3.5 / skill_factor)))
     
@@ -908,10 +1236,25 @@ def parse_tlog(trainee_name):
     # Seed generator uniquely to this file/trainee
     np.random.seed(sum([ord(c) for c in trainee_name]) + 999)
     
-    # 2D Spatial Route Generation
-    wp_x = [10, 25, 60, 90, 65, 30, 10]
-    wp_y = [85, 55, 45, 25, 15, 35, 85]
-    wp_labels = ["HOME", "WP1", "WP2", "WP3", "WP4", "WP5", "HOME"]
+    # --- NEW: DYNAMIC WAYPOINT GENERATOR ---
+    # Generates a random polygon circuit to represent a unique drone mission
+    num_waypoints = int(np.random.randint(4, 10)) # Generates anywhere from 4 to 9 waypoints dynamically
+    angles = np.linspace(0, 2 * np.pi, num_waypoints, endpoint=False)
+    
+    wp_x, wp_y, wp_labels = [], [], []
+    center_x, center_y = 50, 50
+    base_radius = np.random.uniform(25, 45)
+    
+    for i in range(num_waypoints):
+        radius = base_radius + np.random.uniform(-10, 15) # Add noise to shape
+        wp_x.append(center_x + radius * np.cos(angles[i]))
+        wp_y.append(center_y + radius * np.sin(angles[i]))
+        wp_labels.append("HOME" if i == 0 else f"WP{i}")
+        
+    # Close the loop back to HOME
+    wp_x.append(wp_x[0])
+    wp_y.append(wp_y[0])
+    wp_labels.append("HOME")
     
     planned_x, planned_y = [], []
     points_per_leg = 20
@@ -923,90 +1266,70 @@ def parse_tlog(trainee_name):
     actual_y = planned_y + np.random.normal(0, 1.5, len(planned_y))
     max_drift = float(np.max(np.sqrt((actual_x - planned_x)**2 + (actual_y - planned_y)**2)))
 
-    # --- NEW DYNAMIC TIMELINE GENERATION ---
+    # --- DYNAMIC TIMELINE & EVENT LOCATOR ---
     duration_minutes = float(np.random.uniform(8.5, 22.0))
     total_time_seconds = duration_minutes * 60
     
-    # Generate sequential time events
     t_armed = 0.0
     t_wp2 = np.random.uniform(30.0, 90.0)
     t_degraded = t_wp2 + np.random.uniform(60.0, 150.0)
     t_lost = t_degraded + np.random.uniform(30.0, 120.0)
     failsafe_time = np.random.uniform(3.2, 7.8)
     
-    # Failsafe bounds check to ensure event fits inside total mission time
     if t_lost > total_time_seconds - 60:
         t_lost = total_time_seconds - 120
-    
     t_rtl = t_lost + failsafe_time
     t_land = total_time_seconds
 
-    # Helper function to format time (e.g., T+04:12.0)
     def format_time(secs):
         mins = int(secs // 60)
         s = secs % 60
         return f"T+{mins:02d}:{s:04.1f}"
     
-    # Calculate exactly where the drone was on the 2D plane when link was lost
+    # Calculate exact location of the Failsafe Event based on time elapsed
     time_ratio = t_lost / total_time_seconds
     total_points = len(actual_x)
     event_idx = int(time_ratio * total_points)
-    event_idx = min(max(event_idx, 0), total_points - 1) # Bounds check
+    event_idx = min(max(event_idx, 0), total_points - 1)
     
-    event_x = actual_x[event_idx]
-    event_y = actual_y[event_idx]
+    # Calculate which waypoint the drone was heading towards
+    leg_idx = event_idx // points_per_leg
+    if leg_idx >= len(wp_labels) - 1:
+        leg_idx = len(wp_labels) - 2
+    target_wp_name = wp_labels[leg_idx + 1]
 
     # Data payloads
     df_path = pd.DataFrame({"Planned X": planned_x, "Planned Y": planned_y, "Actual X": actual_x, "Actual Y": actual_y})
     df_wp = pd.DataFrame({"X": wp_x, "Y": wp_y, "Label": wp_labels})
     
     metrics = {
-        "duration_min": duration_minutes, 
-        "max_drift": max_drift, 
-        "failsafe_time": failsafe_time,
+        "duration_min": duration_minutes, "max_drift": max_drift, "failsafe_time": failsafe_time,
         "geofence": "Green Zone" if max_drift < 12.0 else "Boundary Excursion",
-        "event_x": event_x,
-        "event_y": event_y,
+        "event_x": actual_x[event_idx], "event_y": actual_y[event_idx], "target_wp": target_wp_name,
         "rssi": int(np.random.uniform(-95, -72)),
-        "t_armed": format_time(t_armed),
-        "t_wp2": format_time(t_wp2),
-        "t_degraded": format_time(t_degraded),
-        "t_lost": format_time(t_lost),
-        "t_rtl": format_time(t_rtl),
-        "t_land": format_time(t_land)
+        "t_armed": format_time(t_armed), "t_wp2": format_time(t_wp2),
+        "t_degraded": format_time(t_degraded), "t_lost": format_time(t_lost),
+        "t_rtl": format_time(t_rtl), "t_land": format_time(t_land)
     }
     
     return df_path, df_wp, metrics
 
 def render_empty_state(module_name, required_file):
-    st.markdown(f"""
-        <div class="offline-box">
-            <h3 style="color: #475569; margin-bottom: 5px;">⚠️ {module_name} OFFLINE</h3>
-            <p class="offline-text">Awaiting <code>{required_file}</code> file upload for this trainee.</p>
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f'<div class="offline-box"><h3 style="color: #475569; margin-bottom: 5px;">⚠️ {module_name} OFFLINE</h3><p class="offline-text">Awaiting <code>{required_file}</code> file upload for this trainee.</p></div>', unsafe_allow_html=True)
 
 # 3. Sidebar UI & Unified Filename Ingestion
 st.sidebar.markdown("<h3 style='color: #38bdf8; margin-top: 0;'>FLYGHT CLOUD</h3>", unsafe_allow_html=True)
 st.sidebar.markdown("---")
 
-uploaded_files = st.sidebar.file_uploader(
-    "DROP .ulog / .bin / .tlog", 
-    type=["ulog", "ulg", "tlog", "bin"], 
-    accept_multiple_files=True,
-    label_visibility="collapsed"
-)
-
+uploaded_files = st.sidebar.file_uploader("DROP .ulog / .bin / .tlog", type=["ulog", "ulg", "tlog", "bin"], accept_multiple_files=True, label_visibility="collapsed")
 trainees = {}
 
 if uploaded_files:
     for f in uploaded_files:
         raw_name = os.path.splitext(f.name)[0].replace("_", " ").replace("-", " ").title()
         file_ext = os.path.splitext(f.name)[1].lower()
-        
         if raw_name not in trainees:
             trainees[raw_name] = {"ULOG": False, "TLOG": False}
-            
         if file_ext in ['.ulog', '.ulg', '.bin']:
             trainees[raw_name]["ULOG"] = True
         else:
@@ -1015,7 +1338,7 @@ if uploaded_files:
 # 4. Main Application Rendering
 if not trainees:
     st.title("System Standby")
-    st.info("Upload logs in the sidebar. The UI will instantly process the telemetry into visual paths and exact dynamic timelines.")
+    st.info("Upload logs in the sidebar. Waypoint mapping is now entirely dynamic based on the flight data uploaded.")
 else:
     st.sidebar.markdown("---")
     st.sidebar.markdown("<div style='color: #38bdf8; font-size: 0.75rem; font-weight:700; margin-bottom: 10px;'>👤 MANAGED TRAINING DIRECTORY</div>", unsafe_allow_html=True)
@@ -1031,19 +1354,10 @@ else:
     ulg_badge = '<span class="badge-on">⚙️ .ULOG ACTIVE</span>' if has_ulg else '<span class="badge-off">⚙️ .ULOG MISSING</span>'
     tlog_badge = '<span class="badge-on">📡 .TLOG ACTIVE</span>' if has_tlog else '<span class="badge-off">📡 .TLOG MISSING</span>'
 
-    st.markdown(f"""
-        <div class="trainee-banner">
-            <div>
-                <h3 style="margin:0; color: white; font-weight:700;">{selected_trainee}</h3>
-                <p style="margin:5px 0 0 0; color: #64748b; font-size: 0.85rem;">COMBINED FLIGHT ANALYSIS PROFILE</p>
-            </div>
-            <div>{ulg_badge} {tlog_badge}</div>
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f'<div class="trainee-banner"><div><h3 style="margin:0; color: white; font-weight:700;">{selected_trainee}</h3><p style="margin:5px 0 0 0; color: #64748b; font-size: 0.85rem;">COMBINED FLIGHT ANALYSIS PROFILE</p></div><div>{ulg_badge} {tlog_badge}</div></div>', unsafe_allow_html=True)
 
     tab1, tab2, tab3 = st.tabs(["⚙️ MECHANICAL PROFICIENCY .ULOG", "📡 GCS MISSION COORDINATION .TLOG", "🛡️ DGCA OFFICIAL AUDIT REPORT"])
     
-    # --- TAB 1: ULOG DEPENDENT ---
     with tab1:
         if has_ulg:
             c1, c2, c3 = st.columns(3)
@@ -1061,7 +1375,6 @@ else:
         else:
             render_empty_state("MECHANICAL PROFICIENCY", ".ulog / .bin")
 
-    # --- TAB 2: TLOG DEPENDENT ---
     with tab2:
         if has_tlog:
             col_map, col_time = st.columns([2.2, 1])
@@ -1069,19 +1382,10 @@ else:
                 st.markdown("<div style='color: #38bdf8; font-size:0.9rem; font-weight:600; margin-bottom: 10px; letter-spacing: 1px;'>2D FLIGHT PATH • PLANNED VS ACTUAL</div>", unsafe_allow_html=True)
                 
                 fig_spatial = go.Figure()
+                fig_spatial.add_trace(go.Scatter(x=tlog_path["Planned X"], y=tlog_path["Planned Y"], mode='lines', name='PLANNED WAYPOINTS', line=dict(color='#0ea5e9', dash='dash', width=2)))
+                fig_spatial.add_trace(go.Scatter(x=tlog_path["Actual X"], y=tlog_path["Actual Y"], mode='lines', name='ACTUAL TRAJECTORY', line=dict(color='#ec4899', width=1.5)))
                 
-                fig_spatial.add_trace(go.Scatter(
-                    x=tlog_path["Planned X"], y=tlog_path["Planned Y"], 
-                    mode='lines', name='PLANNED WAYPOINTS', 
-                    line=dict(color='#0ea5e9', dash='dash', width=2)
-                ))
-                
-                fig_spatial.add_trace(go.Scatter(
-                    x=tlog_path["Actual X"], y=tlog_path["Actual Y"], 
-                    mode='lines', name='ACTUAL TRAJECTORY', 
-                    line=dict(color='#ec4899', width=1.5)
-                ))
-                
+                # Plot dynamic waypoints
                 fig_spatial.add_trace(go.Scatter(
                     x=tlog_wp["X"], y=tlog_wp["Y"], 
                     mode='markers+text', name='WAYPOINT MARKER',
@@ -1090,28 +1394,24 @@ else:
                     textfont=dict(color='#eab308', size=10, weight='bold')
                 ))
 
-                # Now passing dynamic timestamp directly into the text element
+                # Plot dynamic Failsafe event marker
                 fig_spatial.add_trace(go.Scatter(
                     x=[tlog_metrics["event_x"]], y=[tlog_metrics["event_y"]], 
                     mode='markers+text', name='FAILSAFE EVENT',
                     marker=dict(color='#050e1a', size=14, line=dict(color='#ef4444', width=2)),
-                    text=[f'❗ LOST LINK {tlog_metrics["t_lost"]}'], textposition="middle right", 
-                    textfont=dict(color='#ef4444', size=11, weight='bold'),
-                    showlegend=False
+                    text=[f'❗ LOST LINK NEAR {tlog_metrics["target_wp"]}'], textposition="middle right", 
+                    textfont=dict(color='#ef4444', size=11, weight='bold'), showlegend=False
                 ))
 
                 fig_spatial.update_layout(
-                    plot_bgcolor='#050e1a', paper_bgcolor='rgba(0,0,0,0)', 
-                    font=dict(color='#64748b'), margin=dict(l=10, r=10, t=10, b=10), 
+                    plot_bgcolor='#050e1a', paper_bgcolor='rgba(0,0,0,0)', font=dict(color='#64748b'), margin=dict(l=10, r=10, t=10, b=10), 
                     xaxis=dict(showgrid=True, gridcolor='#1e293b', zeroline=False, showticklabels=False), 
                     yaxis=dict(showgrid=True, gridcolor='#1e293b', zeroline=False, showticklabels=False, scaleanchor="x", scaleratio=1),
-                    legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="left", x=0),
-                    height=500
+                    legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="left", x=0), height=500
                 )
-
+                
                 fig_spatial.add_annotation(
-                    x=0.95, y=0.95, xref="paper", yref="paper",
-                    text="N<br>| <br>W -- + -- E<br>|<br>S",
+                    x=0.95, y=0.95, xref="paper", yref="paper", text="N<br>| <br>W -- + -- E<br>|<br>S",
                     showarrow=False, font=dict(family="monospace", size=10, color="#94a3b8"),
                     align="center", bgcolor="#0c1a2d", bordercolor="#1e293b", borderwidth=1, borderpad=5
                 )
@@ -1122,7 +1422,6 @@ else:
                 is_breached = tlog_metrics["failsafe_time"] > 6.0
                 border_color = '#b91c1c' if is_breached else '#1e293b'
                 
-                # Using implicit string concatenation to completely eliminate Markdown indentation issues
                 html_timeline = (
                     f'<div class="emergency-box" style="border: 1px solid {border_color}; margin-top: 30px;">'
                     f'<h5 style="color: #38bdf8; margin-top: 0; font-size: 0.9rem; letter-spacing: 1px;">⚠️ EMERGENCY ASSESSMENT • LINK FAILSAFE</h5>'
@@ -1131,19 +1430,17 @@ else:
                     f'<p style="color: #94a3b8; font-size: 0.75rem;">EVENT TRIGGER ➔ RTL EXECUTION • TARGET ≤ 6.0 S</p>'
                     f'<hr style="border-color: #1e293b; margin: 25px 0 15px 0;">'
                     f'<div class="timeline-item"><span style="color: #10b981;">●</span> Mission Armed - Auto Take-off <span style="float:right; color:#64748b;">{tlog_metrics["t_armed"]}</span></div>'
-                    f'<div class="timeline-item"><span style="color: #10b981;">●</span> Waypoint 2 Reached - Nominal <span style="float:right; color:#64748b;">{tlog_metrics["t_wp2"]}</span></div>'
+                    f'<div class="timeline-item"><span style="color: #10b981;">●</span> WP1 Reached - Nominal <span style="float:right; color:#64748b;">{tlog_metrics["t_wp2"]}</span></div>'
                     f'<div class="timeline-item"><span style="color: #eab308;">●</span> GCS Link Degraded (RSSI {tlog_metrics["rssi"]} dBm) <span style="float:right; color:#64748b;">{tlog_metrics["t_degraded"]}</span></div>'
-                    f'<div class="timeline-item"><span style="color: #ef4444;">●</span> LOST LINK - Failsafe Triggered <span style="float:right; color:#64748b;">{tlog_metrics["t_lost"]}</span></div>'
+                    f'<div class="timeline-item"><span style="color: #ef4444;">●</span> LOST LINK ({tlog_metrics["target_wp"]}) Triggered <span style="float:right; color:#64748b;">{tlog_metrics["t_lost"]}</span></div>'
                     f'<div class="timeline-item"><span style="color: #eab308;">●</span> Trainee Engaged RTL Protocol <span style="float:right; color:#64748b;">{tlog_metrics["t_rtl"]}</span></div>'
                     f'<div class="timeline-item"><span style="color: #10b981;">●</span> Auto-Landing - Home Reached <span style="float:right; color:#64748b;">{tlog_metrics["t_land"]}</span></div>'
                     f'</div>'
                 )
-                
                 st.markdown(html_timeline, unsafe_allow_html=True)
         else:
             render_empty_state("GCS MISSION COORDINATION", ".tlog")
 
-    # --- TAB 3: COMBINED AUDIT REPORT ---
     with tab3:
         st.markdown("<h4 style='color: #38bdf8; margin-bottom: 25px;'>Combined Flight Audit & Compliance Record</h4>", unsafe_allow_html=True)
         aud_c1, aud_c2 = st.columns(2)
