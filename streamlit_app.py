@@ -295,7 +295,8 @@ st.title("🛸 Automated UAV Flight Log Analyzer")
 st.markdown("Upload raw `.ulg` (Onboard Dataflash) or `.tlog` (Telemetry Log) files to evaluate trainee piloting accuracy, mechanical handling, and regulatory compliance.")
 
 # 2. Sidebar Navigation & Target File Management
-st.sidebar.image("https://img.icons8.com/external-flatart-icons-lineal-color-flatart-icons/128/external-drone-smart-city-flatart-icons-lineal-color-flatart-icons.png", width=60)
+st.sidebar.image("https://redonsystems.in/wp-content/uploads/2025/03/redon-favicon.png", width=60)
+# st.sidebar.image("https://img.icons8.com/external-flatart-icons-lineal-color-flatart-icons/128/external-drone-smart-city-flatart-icons-lineal-color-flatart-icons.png", width=60)
 st.sidebar.title("Telemetry Control")
 st.sidebar.markdown("---")
 
@@ -379,6 +380,26 @@ else:
     
     target_file = file_map[selected_file_name]
     log_type, telemetry_data = process_log_telemetry(target_file.name, target_file.size)
+
+    metric_css = """<style>
+    /* Target Streamlit metric widget containers */
+    [data-testid="stMetric"] {
+        background-color: #000000 !important;
+        padding: 15px !important;
+        border-radius: 8px !important;
+        border: 1px solid #333333 !important;
+    }
+    /* Force metric label text to light gray */
+    [data-testid="stMetricLabel"] {
+        color: #aaaaaa !important;
+    }
+    /* Force metric value text to pure white */
+    [data-testid="stMetricValue"] {
+        color: #ffffff !important;
+    }
+    </style>"""
+
+    st.html(metric_css)
     
     # Display processing summary card
     st.success(f"Successfully compiled tracking matrix from {target_file.name} ({target_file.size / 1024:.2f} KB)")
