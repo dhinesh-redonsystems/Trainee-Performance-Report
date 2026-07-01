@@ -1656,10 +1656,12 @@ def extract_ulog(file):
 
         telemetry["Altitude (ft)"] = 0
 
-    telemetry = (
-        telemetry
-        .fillna()
-        .fillna(0)
+    telemetry = telemetry.copy()
+
+    telemetry = telemetry.ffill()
+    
+    telemetry = telemetry.fillna(
+        value=0
     )
 
     # ======================
