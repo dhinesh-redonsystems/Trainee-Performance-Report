@@ -4,3 +4,4 @@ plotly
 google-genai
 pymavlink
 pyulog
+geopy
