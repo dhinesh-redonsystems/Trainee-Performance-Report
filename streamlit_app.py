@@ -1658,7 +1658,7 @@ def extract_ulog(file):
 
     telemetry = (
         telemetry
-        .fillna(method="ffill")
+        .fillna()
         .fillna(0)
     )
 
