@@ -1475,6 +1475,1007 @@
 
 # Version 6 
 
+# import numpy as np
+# import pandas as pd
+# from pyulog import ULog
+# from pymavlink import mavutil
+# from geopy.distance import geodesic
+# import streamlit as st
+# import plotly.graph_objects as go
+# import os
+# import tempfile
+
+
+
+# # ============================================================
+# # HELPERS
+# # ============================================================
+
+# def safe_topic(ulog, topic):
+
+#     try:
+#         ds = ulog.get_dataset(topic)
+#         return pd.DataFrame(ds.data)
+
+#     except:
+#         return pd.DataFrame()
+
+
+# def norm_ts(df):
+
+#     if "timestamp" in df.columns:
+
+#         df["timestamp"] = (
+#             df["timestamp"]
+#             -
+#             df["timestamp"].iloc[0]
+#         ) / 1e6
+
+#     return df
+
+
+# # ============================================================
+# # ULOG EXTRACTION
+# # ============================================================
+# @st.cache_resource
+# def extract_ulog(file):
+
+#     with tempfile.NamedTemporaryFile(
+
+#         delete=False,
+
+#         suffix=".ulg"
+
+#     ) as tmp:
+
+#         tmp.write(
+#             file.getbuffer()
+#         )
+
+#         temp_path = (
+#             tmp.name
+#         )
+
+#     ulog = ULog(
+#         temp_path
+#     )
+#     attitude = safe_topic(
+#         ulog,
+#         "vehicle_attitude"
+#     )
+
+#     local_pos = safe_topic(
+#         ulog,
+#         "vehicle_local_position"
+#     )
+
+#     global_pos = safe_topic(
+#         ulog,
+#         "vehicle_global_position"
+#     )
+
+#     rates = safe_topic(
+#         ulog,
+#         "vehicle_rates_setpoint"
+#     )
+
+#     actuator = safe_topic(
+#         ulog,
+#         "actuator_outputs"
+#     )
+
+#     status = safe_topic(
+#         ulog,
+#         "vehicle_status"
+#     )
+
+#     if attitude.empty:
+#         raise Exception(
+#             "vehicle_attitude missing"
+#         )
+
+#     attitude = norm_ts(attitude)
+
+#     telemetry = pd.DataFrame()
+
+#     telemetry["Time (s)"] = attitude["timestamp"]
+
+#     # Quaternion → Roll
+
+#     q0 = attitude["q[0]"]
+#     q1 = attitude["q[1]"]
+#     q2 = attitude["q[2]"]
+#     q3 = attitude["q[3]"]
+
+#     telemetry["Roll ACT"] = np.degrees(
+#         np.arctan2(
+#             2*(q0*q1+q2*q3),
+#             1-2*(q1*q1+q2*q2)
+#         )
+#     )
+
+#     telemetry["Pitch ACT"] = np.degrees(
+#         np.arcsin(
+#             np.clip(
+#                 2*(q0*q2-q3*q1),
+#                 -1,
+#                 1
+#             )
+#         )
+#     )
+
+#     if not rates.empty:
+
+#         rates = norm_ts(rates)
+
+#         roll_col = next(
+
+#             (
+#                 c
+#                 for c in rates.columns
+#                 if "roll" in c.lower()
+#             ),
+
+#             None
+
+#         )
+
+#         if roll_col:
+
+#             telemetry["Roll CMD"] = (
+
+#                 rates[roll_col]
+
+#                 .reindex(
+#                     telemetry.index
+#                 )
+
+#             )
+
+#         else:
+
+#             telemetry["Roll CMD"] = (
+
+#                 telemetry["Roll ACT"]
+
+#             )
+
+#     if not local_pos.empty:
+
+#         local_pos = norm_ts(
+#             local_pos
+#         )
+
+#         telemetry["Altitude (ft)"] = (
+#             -local_pos["z"]
+#             *
+#             3.28084
+#         )
+
+#     else:
+
+#         telemetry["Altitude (ft)"] = 0
+
+#     telemetry = telemetry.copy()
+
+#     telemetry = telemetry.ffill()
+    
+#     telemetry = telemetry.fillna(
+#         value=0
+#     )
+
+#     # ======================
+#     # Metrics
+#     # ======================
+
+#     roll_delta = (
+#         telemetry["Roll CMD"]
+#         -
+#         telemetry["Roll ACT"]
+#     )
+
+#     stick_diff = np.diff(
+#         telemetry["Roll ACT"]
+#     )
+
+#     attitude_dev = (
+#         np.mean(
+#             np.abs(
+#                 roll_delta
+#             )
+#         )
+#     )
+
+#     erratic_events = int(
+#         np.sum(
+#             np.abs(
+#                 stick_diff
+#             )
+#             >
+#             5
+#         )
+#     )
+
+#     loop_rate = max(1, int(len(telemetry)/max(0.01, telemetry["Time (s)"].iloc[-1])))
+
+#     duration = (
+#         telemetry[
+#             "Time (s)"
+#         ].iloc[-1]
+#     )
+
+#     metrics = {
+
+#         "duration":
+
+#             duration,
+
+#         "max_alt":
+
+#             float(
+#                 telemetry[
+#                     "Altitude (ft)"
+#                 ].max()
+#             ),
+
+#         "attitude_dev":
+
+#             attitude_dev,
+
+#         "erratic_events":
+
+#             erratic_events,
+
+#         "loop_rate":
+
+#             loop_rate,
+
+#         "smoothness":
+
+#             (
+#                 "Excellent"
+#                 if erratic_events < 5
+#                 else
+#                 "Fair"
+#                 if erratic_events < 20
+#                 else
+#                 "Poor"
+#             )
+#     }
+
+#     return (
+#         telemetry,
+#         metrics
+#     )
+
+
+# # ============================================================
+# # TLOG EXTRACTION
+# # ============================================================
+# #  Modular Telemetry Engines
+
+# @st.cache_resource
+# def extract_tlog(file):
+
+#     # Convert Streamlit upload → temp file
+
+#     with tempfile.NamedTemporaryFile(
+
+#         delete=False,
+
+#         suffix=".tlog"
+
+#     ) as tmp:
+
+#         tmp.write(
+#             file.getbuffer()
+#         )
+
+#         temp_path = (
+#             tmp.name
+#         )
+
+
+#     mav = (
+
+#         mavutil
+#         .mavlink_connection(
+
+#             temp_path
+
+#         )
+
+#     )
+
+#     rows = []
+#     mission_rows=[]
+
+#     while True:
+
+#         msg = mav.recv_match(
+#             blocking=False
+#         )
+
+#         if msg is None:
+#             break
+
+#         m = msg.to_dict()
+
+#         t = (
+#             getattr(
+#                 msg,
+#                 "_timestamp",
+#                 None
+#             )
+#         )
+
+#         if t is None:
+#             continue
+        
+#         if msg.get_type()=="MISSION_ITEM":
+#             mission_rows.append(
+
+#                 {
+
+#                     "lat":msg.x,
+
+#                     "lon":msg.y,
+
+#                     "seq":msg.seq
+
+#                 }
+
+#             )
+#         rows.append(
+#             {
+#                 "time": t,
+#                 "type": msg.get_type(),
+#                 **m
+#             }
+#         )
+
+#     df = pd.DataFrame(
+#         rows
+#     )
+
+#     if df.empty:
+
+#         raise Exception(
+#             "No telemetry"
+#         )
+
+#     gps = (
+#         df[
+#             df.type
+#             ==
+#             "GLOBAL_POSITION_INT"
+#         ]
+#         .copy()
+#     )
+
+#     if gps.empty:
+
+#         raise Exception(
+#             "GPS missing"
+#         )
+
+#     gps["lat"] /= 1e7
+#     gps["lon"] /= 1e7
+#     gps["alt"] /= 1000
+
+#     start = gps.time.iloc[0]
+
+#     gps["time"] -= start
+
+#     # =====================
+#     # Distance
+#     # =====================
+
+#     dist = 0
+
+#     for i in range(
+#         1,
+#         len(gps)
+#     ):
+
+#         dist += geodesic(
+
+#         (
+#         gps.lat.iloc[i-1],
+#         gps.lon.iloc[i-1]
+#         ),
+
+#         (
+#         gps.lat.iloc[i],
+#         gps.lon.iloc[i]
+#         )
+
+#         ).meters
+#     duration = (
+#         gps.time.max()
+#     )
+
+#     drift = float(
+#         np.std(
+#             gps.lat
+#         )
+#         *
+#         111000
+#     )
+
+#     # =====================
+#     # Find RTL
+#     # =====================
+
+#     rtl = (
+#         df[
+#             (
+#                 df.type
+#                 ==
+#                 "STATUSTEXT"
+#             )
+#         ]
+#     )
+
+#     rtl_detected = (
+#         rtl.astype(str)
+#         .apply(
+#             lambda x:
+#             x.str.contains(
+#                 "RTL",
+#                 case=False
+#             )
+#         )
+#         .any()
+#         .any()
+#     )
+
+#     metrics = {
+
+#         "duration_min":
+
+#             duration
+#             /
+#             60,
+
+#         "distance":
+
+#             dist,
+
+#         "max_drift":
+
+#             drift,
+
+#         "failsafe":
+
+#             rtl_detected,
+
+#         "geofence":
+
+#             (
+#                 "Green Zone"
+#                 if drift < 20
+#                 else
+#                 "Boundary Excursion"
+#             )
+#     }
+#     waypoints = pd.DataFrame(
+#         mission_rows
+#     )
+
+#     return (
+#         gps,
+#         waypoints,
+#         metrics
+#     )
+
+
+# # ============================================================
+# # AUTO PARSER
+# # ============================================================
+
+# def parse_uploaded_log(
+#     uploaded_file
+# ):
+
+#     name = (
+#         uploaded_file.name
+#         .lower()
+#     )
+
+#     if (
+#         name.endswith(
+#             (
+#                 ".ulg",
+#                 ".ulog"
+#             )
+#         )
+#     ):
+
+#         return extract_ulog(
+#             uploaded_file
+#         )
+
+#     elif (
+#         name.endswith(
+#             ".tlog"
+#         )
+#     ):
+
+#         return extract_tlog(
+#             uploaded_file
+#         )
+
+#     else:
+
+#         raise Exception(
+#             "Unsupported log"
+#         )
+    
+
+# # 1. Page Configuration & Aerospace Dark Theme
+# st.set_page_config(page_title="Flyght Cloud | Dual-Log Analytics", layout="wide", initial_sidebar_state="expanded")
+
+# st.markdown("""
+#     <style>
+#     .stApp { background-color: #040d1a; color: #cbd5e1; }
+#     header { visibility: hidden; }
+#     section[data-testid="stSidebar"] { background-color: #0a1424; border-right: 1px solid #1e293b; }
+#     div[data-testid="metric-container"] {
+#         background-color: #0c1a2d; border: 1px solid #1e293b; padding: 15px;
+#         border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+#     }
+#     div[data-testid="metric-container"] label { color: #94a3b8 !important; font-size: 0.85rem; font-weight: 600; }
+#     div[data-testid="metric-container"] div { color: #38bdf8 !important; font-weight: 700; }
+#     .offline-box { background-color: #0a1424; border: 1px dashed #334155; border-radius: 8px; padding: 40px 20px; text-align: center; color: #64748b; margin-bottom: 20px; }
+#     .offline-text { font-size: 1.1rem; font-weight: 600; letter-spacing: 1px; color: #475569; }
+#     .stTabs [data-baseweb="tab-list"] { background-color: #0c1a2d; border-radius: 8px; padding: 5px; gap: 10px; border: 1px solid #1e293b; }
+#     .stTabs [data-baseweb="tab"] { color: #64748b; padding: 10px 20px; border-radius: 6px; font-weight: 500; }
+#     .stTabs [aria-selected="true"] { background-color: #1e293b !important; color: #38bdf8 !important; }
+#     .trainee-banner { background-color: #0c1a2d; border: 1px solid #1e293b; border-radius: 8px; padding: 20px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+#     .badge-on { background-color: rgba(16, 185, 129, 0.15); color: #10b981; padding: 5px 12px; border-radius: 15px; font-size: 0.8rem; border: 1px solid rgba(16, 185, 129, 0.3); font-weight: 600; margin-left: 8px;}
+#     .badge-off { background-color: rgba(239, 68, 68, 0.1); color: #ef4444; padding: 5px 12px; border-radius: 15px; font-size: 0.8rem; border: 1px solid rgba(239, 68, 68, 0.3); font-weight: 600; margin-left: 8px;}
+#     .emergency-box { background-color: #0c1a2d; border: 1px solid #334155; border-radius: 8px; padding: 20px; }
+#     .timeline-item { font-size: 0.85rem; padding: 4px 0; border-left: 2px solid #1e293b; padding-left: 12px; margin-left: 6px; }
+#     </style>
+# """, unsafe_allow_html=True)
+
+
+
+# def render_empty_state(module_name, required_file):
+#     st.markdown(f'<div class="offline-box"><h3 style="color: #475569; margin-bottom: 5px;">⚠️ {module_name} OFFLINE</h3><p class="offline-text">Awaiting <code>{required_file}</code> file upload for this trainee.</p></div>', unsafe_allow_html=True)
+
+# # 3. Sidebar UI & Unified Filename Ingestion
+# st.sidebar.markdown("<h3 style='color: #38bdf8; margin-top: 0;'>FLYGHT CLOUD</h3>", unsafe_allow_html=True)
+# st.sidebar.markdown("---")
+
+# # =====================================================
+# # FILE INGESTION + TELEMETRY LOADING
+# # =====================================================
+
+# uploaded_files = st.sidebar.file_uploader(
+#     "DROP .ulog / .ulg / .tlog / .bin",
+#     type=[
+#         "ulog",
+#         "ulg",
+#         "tlog",
+#         "bin"
+#     ],
+#     accept_multiple_files=True,
+#     label_visibility="collapsed"
+# )
+
+# trainees = {}
+
+# if uploaded_files:
+
+#     for f in uploaded_files:
+
+#         trainee = (
+#             os.path.splitext(
+#                 f.name
+#             )[0]
+#             .replace("_"," ")
+#             .replace("-"," ")
+#             .title()
+#         )
+
+#         ext = (
+#             os.path.splitext(
+#                 f.name
+#             )[1]
+#             .lower()
+#         )
+
+#         if trainee not in trainees:
+
+#             trainees[
+#                 trainee
+#             ] = {}
+
+#         trainees[
+#             trainee
+#         ][ext] = f
+
+
+# if not trainees:
+
+#     st.title(
+#         "System Standby"
+#     )
+
+#     st.info(
+#         "Upload telemetry logs"
+#     )
+
+#     st.stop()
+
+
+# selected_trainee = st.sidebar.radio(
+
+#     "Active Profiles",
+
+#     list(
+#         trainees.keys()
+#     ),
+
+#     label_visibility="collapsed"
+# )
+
+
+# profile = trainees[
+#     selected_trainee
+# ]
+
+
+# ulg_data = None
+# ulg_metrics = None
+
+# tlog_data = None
+# tlog_metrics = None
+
+# tlog_wp=pd.DataFrame()
+
+
+# try:
+
+#     if (
+#         ".ulg"
+#         in
+#         profile
+#     ):
+
+#         ulg_data, ulg_metrics = (
+
+#             parse_uploaded_log(
+
+#                 profile[
+#                     ".ulg"
+#                 ]
+
+#             )
+
+#         )
+
+#     elif (
+
+#         ".ulog"
+#         in
+#         profile
+
+#     ):
+
+#         ulg_data, ulg_metrics = (
+
+#             parse_uploaded_log(
+
+#                 profile[
+#                     ".ulog"
+#                 ]
+
+#             )
+
+#         )
+
+
+# except Exception as e:
+
+#     st.error(
+#         f"ULOG Error: {e}"
+#     )
+
+
+# try:
+
+#     if (
+#         ".tlog"
+#         in
+#         profile
+#     ):
+
+#         tlog_data, tlog_wp, tlog_metrics = (
+#             parse_uploaded_log(
+#                 profile[".tlog"]
+#             )
+#         )
+
+
+# except Exception as e:
+
+#     st.error(
+#         f"TLOG Error: {e}"
+#     )
+
+
+# has_ulg = (
+
+#     ulg_data
+#     is not None
+
+# )
+
+# has_tlog = (
+
+#     tlog_data
+#     is not None
+
+# )
+
+# ulg_badge = '<span class="badge-on">⚙️ .ULOG ACTIVE</span>' if has_ulg else '<span class="badge-off">⚙️ .ULOG MISSING</span>'
+# tlog_badge = '<span class="badge-on">📡 .TLOG ACTIVE</span>' if has_tlog else '<span class="badge-off">📡 .TLOG MISSING</span>'
+
+# st.markdown(f'<div class="trainee-banner"><div><h3 style="margin:0; color: white; font-weight:700;">{selected_trainee}</h3><p style="margin:5px 0 0 0; color: #64748b; font-size: 0.85rem;">COMBINED FLIGHT ANALYSIS PROFILE</p></div><div>{ulg_badge} {tlog_badge}</div></div>', unsafe_allow_html=True)
+
+# tab1, tab2, tab3 = st.tabs(["⚙️ MECHANICAL PROFICIENCY .ULOG", "📡 GCS MISSION COORDINATION .TLOG", "🛡️ DGCA OFFICIAL AUDIT REPORT"])
+
+# with tab1:
+#     if has_ulg:
+#         c1, c2, c3 = st.columns(3)
+#         with c1: st.metric("PILOT SMOOTHNESS FACTOR", ulg_metrics['smoothness'], f"{ulg_metrics['erratic_events']} ERRATIC EVENTS", delta_color="inverse" if ulg_metrics['erratic_events'] > 2 else "normal")
+#         with c2: st.metric("ATTITUDE DEVIATION INDEX", f"{ulg_metrics['attitude_dev']:.2f}°", "MEAN CMD ➔ ACTUAL DELTA", delta_color="off")
+#         with c3: st.metric("CONTROL LOOP RATE", f"{ulg_metrics['loop_rate']} Hz", "PX4 IMU FILTER ACTIVE", delta_color="off")
+            
+#         fig_mech = go.Figure()
+#         fig_mech.add_trace(go.Scatter(x=ulg_data["Time (s)"], y=ulg_data["Roll CMD"], mode='lines', name='Roll Target', line=dict(color='#0ea5e9')))
+#         fig_mech.add_trace(go.Scatter(x=ulg_data["Time (s)"], y=ulg_data["Roll ACT"], mode='lines', name='Roll Actual', line=dict(color='#ec4899')))
+#         fig_mech.update_layout(title="ACTUATOR OUTPUT VS COMMAND", plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#94a3b8'), margin=dict(l=10, r=10, t=50, b=10))
+#         fig_mech.update_xaxes(showgrid=True, gridcolor='#1e293b')
+#         fig_mech.update_yaxes(showgrid=True, gridcolor='#1e293b')
+#         st.plotly_chart(fig_mech, use_container_width=True)
+#     else:
+#         render_empty_state("MECHANICAL PROFICIENCY", ".ulog / .bin")
+
+# with tab2:
+#     if has_tlog:
+#         col_map, col_time = st.columns([2.2, 1])
+#         with col_map:
+#             st.markdown("<div style='color: #38bdf8; font-size:0.9rem; font-weight:600; margin-bottom: 10px; letter-spacing: 1px;'>2D FLIGHT PATH • PLANNED VS ACTUAL</div>", unsafe_allow_html=True)
+            
+#             fig_spatial = go.Figure()
+#             # =====================================================
+#             # ACTUAL TRAJECTORY
+#             # =====================================================
+
+#             fig_spatial.add_trace(
+
+#                 go.Scatter(
+
+#                     x=tlog_data["lon"],
+
+#                     y=tlog_data["lat"],
+
+#                     mode="lines",
+
+#                     name="Flight Path"
+
+#                 )
+
+#             )
+
+
+#             # =====================================================
+#             # ADD WAYPOINTS HERE
+#             # =====================================================
+
+#             if (
+#                 tlog_wp is not None
+#                 and
+#                 not tlog_wp.empty
+#             ):
+
+#                 fig_spatial.add_trace(
+
+#                     go.Scatter(
+
+#                         x=tlog_wp["lon"],
+
+#                         y=tlog_wp["lat"],
+
+#                         mode="markers+text",
+
+#                         text=tlog_wp["seq"],
+
+#                         textposition="top center",
+
+#                         name="WAYPOINTS"
+
+#                     )
+
+#                 )
+
+
+#             # =====================================================
+#             # START MARKER
+#             # =====================================================
+
+#             fig_spatial.add_trace(
+
+#                 go.Scatter(
+
+#                     x=[
+#                         tlog_data["lon"].iloc[0]
+#                     ],
+
+#                     y=[
+#                         tlog_data["lat"].iloc[0]
+#                     ],
+
+#                     mode="markers+text",
+
+#                     text=["HOME"],
+
+#                     name="START"
+
+#                 )
+
+#             )
+
+
+#             # =====================================================
+#             # END MARKER
+#             # =====================================================
+
+#             fig_spatial.add_trace(
+
+#                 go.Scatter(
+
+#                     x=[
+#                         tlog_data["lon"].iloc[-1]
+#                     ],
+
+#                     y=[
+#                         tlog_data["lat"].iloc[-1]
+#                     ],
+
+#                     mode="markers+text",
+
+#                     text=["LAND"],
+
+#                     name="END"
+
+#                 )
+
+#             )
+
+
+#             st.plotly_chart(
+#                 fig_spatial,
+#                 use_container_width=True
+#             )
+            
+#         with col_time:
+#             st.metric(
+
+#                 "FAILSAFE",
+
+#                 (
+
+#                     "PASS"
+
+#                     if not tlog_metrics["failsafe"]
+
+#                     else
+
+#                     "RTL DETECTED"
+
+#                 )
+
+#             )
+
+#             st.metric(
+
+#                 "MISSION TIME",
+
+#                 f'{tlog_metrics["duration_min"]:.2f} min'
+
+#             )
+
+#             st.metric(
+
+#                 "DISTANCE",
+
+#                 f'{tlog_metrics["distance"]:.1f} m'
+
+#             )
+
+#             st.metric(
+
+#                 "MAX DRIFT",
+
+#                 f'{tlog_metrics["max_drift"]:.1f} m'
+
+#             )
+#             st.markdown("### Emergency Assessment")
+
+#             st.metric(
+#                 "Failsafe Status",
+#                 (
+#                     "RTL DETECTED"
+#                     if tlog_metrics["failsafe"]
+#                     else
+#                     "NO FAILSAFE"
+#                 )
+#             )
+#     else:
+#         render_empty_state("GCS MISSION COORDINATION", ".tlog")
+
+# with tab3:
+#     st.markdown("<h4 style='color: #38bdf8; margin-bottom: 25px;'>Combined Flight Audit & Compliance Record</h4>", unsafe_allow_html=True)
+#     aud_c1, aud_c2 = st.columns(2)
+    
+#     with aud_c1:
+#         if has_ulg:
+#             ceiling_flag = "BREACH" if ulg_metrics["max_alt"] > 400 else "PASSED"
+#             st.metric("FLIGHT CEILING CHECK", f"{ulg_metrics['max_alt']:.1f} ft AGL", f"DGCA LIMIT: 400 FT ({ceiling_flag})", delta_color="inverse" if ulg_metrics["max_alt"] > 400 else "normal")
+#         else:
+#             st.metric("FLIGHT CEILING CHECK", "N/A", "Requires .ULOG data")
+            
+#     with aud_c2:
+#         if has_tlog:
+#             st.metric("FLIGHT TIME LOG", f"{tlog_metrics['duration_min']:.2f} min", "WITHIN SESSION QUOTA LIMITS", delta_color="normal")
+#         else:
+#             st.metric("FLIGHT TIME LOG", "N/A", "Requires .TLOG data")
+            
+#     st.write("") 
+#     aud_c3, aud_c4 = st.columns(2)
+    
+#     with aud_c3:
+#         if has_tlog:
+#             st.metric("GEO-FENCING VALIDATOR", tlog_metrics["geofence"], f"MAX SPATIAL BOUNDARY DEVIATION: {tlog_metrics['max_drift']:.1f} M", delta_color="normal" if tlog_metrics["geofence"] == "Green Zone" else "inverse")
+#         else:
+#             st.metric("GEO-FENCING VALIDATOR", "N/A", "Requires .TLOG data")
+            
+#     with aud_c4:
+
+#         if has_tlog:
+
+#             st.metric(
+
+#                 "FAILSAFE",
+
+#                 (
+
+#                     "PASS"
+
+#                     if not tlog_metrics["failsafe"]
+
+#                     else
+
+#                     "RTL DETECTED"
+
+#                 )
+
+#             )
+
+#         else:
+
+#             st.metric(
+#                 "FAILSAFE",
+#                 "N/A"
+#             )
+
+# Version 7
+
 import numpy as np
 import pandas as pd
 from pyulog import ULog
@@ -1484,537 +2485,13 @@ import streamlit as st
 import plotly.graph_objects as go
 import os
 import tempfile
-
-
-
-# ============================================================
-# HELPERS
-# ============================================================
-
-def safe_topic(ulog, topic):
-
-    try:
-        ds = ulog.get_dataset(topic)
-        return pd.DataFrame(ds.data)
-
-    except:
-        return pd.DataFrame()
-
-
-def norm_ts(df):
-
-    if "timestamp" in df.columns:
-
-        df["timestamp"] = (
-            df["timestamp"]
-            -
-            df["timestamp"].iloc[0]
-        ) / 1e6
-
-    return df
-
+import json
+import io
 
 # ============================================================
-# ULOG EXTRACTION
+# PAGE CONFIG & STYLING
 # ============================================================
-@st.cache_resource
-def extract_ulog(file):
-
-    with tempfile.NamedTemporaryFile(
-
-        delete=False,
-
-        suffix=".ulg"
-
-    ) as tmp:
-
-        tmp.write(
-            file.getbuffer()
-        )
-
-        temp_path = (
-            tmp.name
-        )
-
-    ulog = ULog(
-        temp_path
-    )
-    attitude = safe_topic(
-        ulog,
-        "vehicle_attitude"
-    )
-
-    local_pos = safe_topic(
-        ulog,
-        "vehicle_local_position"
-    )
-
-    global_pos = safe_topic(
-        ulog,
-        "vehicle_global_position"
-    )
-
-    rates = safe_topic(
-        ulog,
-        "vehicle_rates_setpoint"
-    )
-
-    actuator = safe_topic(
-        ulog,
-        "actuator_outputs"
-    )
-
-    status = safe_topic(
-        ulog,
-        "vehicle_status"
-    )
-
-    if attitude.empty:
-        raise Exception(
-            "vehicle_attitude missing"
-        )
-
-    attitude = norm_ts(attitude)
-
-    telemetry = pd.DataFrame()
-
-    telemetry["Time (s)"] = attitude["timestamp"]
-
-    # Quaternion → Roll
-
-    q0 = attitude["q[0]"]
-    q1 = attitude["q[1]"]
-    q2 = attitude["q[2]"]
-    q3 = attitude["q[3]"]
-
-    telemetry["Roll ACT"] = np.degrees(
-        np.arctan2(
-            2*(q0*q1+q2*q3),
-            1-2*(q1*q1+q2*q2)
-        )
-    )
-
-    telemetry["Pitch ACT"] = np.degrees(
-        np.arcsin(
-            np.clip(
-                2*(q0*q2-q3*q1),
-                -1,
-                1
-            )
-        )
-    )
-
-    if not rates.empty:
-
-        rates = norm_ts(rates)
-
-        roll_col = next(
-
-            (
-                c
-                for c in rates.columns
-                if "roll" in c.lower()
-            ),
-
-            None
-
-        )
-
-        if roll_col:
-
-            telemetry["Roll CMD"] = (
-
-                rates[roll_col]
-
-                .reindex(
-                    telemetry.index
-                )
-
-            )
-
-        else:
-
-            telemetry["Roll CMD"] = (
-
-                telemetry["Roll ACT"]
-
-            )
-
-    if not local_pos.empty:
-
-        local_pos = norm_ts(
-            local_pos
-        )
-
-        telemetry["Altitude (ft)"] = (
-            -local_pos["z"]
-            *
-            3.28084
-        )
-
-    else:
-
-        telemetry["Altitude (ft)"] = 0
-
-    telemetry = telemetry.copy()
-
-    telemetry = telemetry.ffill()
-    
-    telemetry = telemetry.fillna(
-        value=0
-    )
-
-    # ======================
-    # Metrics
-    # ======================
-
-    roll_delta = (
-        telemetry["Roll CMD"]
-        -
-        telemetry["Roll ACT"]
-    )
-
-    stick_diff = np.diff(
-        telemetry["Roll ACT"]
-    )
-
-    attitude_dev = (
-        np.mean(
-            np.abs(
-                roll_delta
-            )
-        )
-    )
-
-    erratic_events = int(
-        np.sum(
-            np.abs(
-                stick_diff
-            )
-            >
-            5
-        )
-    )
-
-    loop_rate = max(1, int(len(telemetry)/max(0.01, telemetry["Time (s)"].iloc[-1])))
-
-    duration = (
-        telemetry[
-            "Time (s)"
-        ].iloc[-1]
-    )
-
-    metrics = {
-
-        "duration":
-
-            duration,
-
-        "max_alt":
-
-            float(
-                telemetry[
-                    "Altitude (ft)"
-                ].max()
-            ),
-
-        "attitude_dev":
-
-            attitude_dev,
-
-        "erratic_events":
-
-            erratic_events,
-
-        "loop_rate":
-
-            loop_rate,
-
-        "smoothness":
-
-            (
-                "Excellent"
-                if erratic_events < 5
-                else
-                "Fair"
-                if erratic_events < 20
-                else
-                "Poor"
-            )
-    }
-
-    return (
-        telemetry,
-        metrics
-    )
-
-
-# ============================================================
-# TLOG EXTRACTION
-# ============================================================
-#  Modular Telemetry Engines
-
-@st.cache_resource
-def extract_tlog(file):
-
-    # Convert Streamlit upload → temp file
-
-    with tempfile.NamedTemporaryFile(
-
-        delete=False,
-
-        suffix=".tlog"
-
-    ) as tmp:
-
-        tmp.write(
-            file.getbuffer()
-        )
-
-        temp_path = (
-            tmp.name
-        )
-
-
-    mav = (
-
-        mavutil
-        .mavlink_connection(
-
-            temp_path
-
-        )
-
-    )
-
-    rows = []
-    mission_rows=[]
-
-    while True:
-
-        msg = mav.recv_match(
-            blocking=False
-        )
-
-        if msg is None:
-            break
-
-        m = msg.to_dict()
-
-        t = (
-            getattr(
-                msg,
-                "_timestamp",
-                None
-            )
-        )
-
-        if t is None:
-            continue
-        
-        if msg.get_type()=="MISSION_ITEM":
-            mission_rows.append(
-
-                {
-
-                    "lat":msg.x,
-
-                    "lon":msg.y,
-
-                    "seq":msg.seq
-
-                }
-
-            )
-        rows.append(
-            {
-                "time": t,
-                "type": msg.get_type(),
-                **m
-            }
-        )
-
-    df = pd.DataFrame(
-        rows
-    )
-
-    if df.empty:
-
-        raise Exception(
-            "No telemetry"
-        )
-
-    gps = (
-        df[
-            df.type
-            ==
-            "GLOBAL_POSITION_INT"
-        ]
-        .copy()
-    )
-
-    if gps.empty:
-
-        raise Exception(
-            "GPS missing"
-        )
-
-    gps["lat"] /= 1e7
-    gps["lon"] /= 1e7
-    gps["alt"] /= 1000
-
-    start = gps.time.iloc[0]
-
-    gps["time"] -= start
-
-    # =====================
-    # Distance
-    # =====================
-
-    dist = 0
-
-    for i in range(
-        1,
-        len(gps)
-    ):
-
-        dist += geodesic(
-
-        (
-        gps.lat.iloc[i-1],
-        gps.lon.iloc[i-1]
-        ),
-
-        (
-        gps.lat.iloc[i],
-        gps.lon.iloc[i]
-        )
-
-        ).meters
-    duration = (
-        gps.time.max()
-    )
-
-    drift = float(
-        np.std(
-            gps.lat
-        )
-        *
-        111000
-    )
-
-    # =====================
-    # Find RTL
-    # =====================
-
-    rtl = (
-        df[
-            (
-                df.type
-                ==
-                "STATUSTEXT"
-            )
-        ]
-    )
-
-    rtl_detected = (
-        rtl.astype(str)
-        .apply(
-            lambda x:
-            x.str.contains(
-                "RTL",
-                case=False
-            )
-        )
-        .any()
-        .any()
-    )
-
-    metrics = {
-
-        "duration_min":
-
-            duration
-            /
-            60,
-
-        "distance":
-
-            dist,
-
-        "max_drift":
-
-            drift,
-
-        "failsafe":
-
-            rtl_detected,
-
-        "geofence":
-
-            (
-                "Green Zone"
-                if drift < 20
-                else
-                "Boundary Excursion"
-            )
-    }
-    waypoints = pd.DataFrame(
-        mission_rows
-    )
-
-    return (
-        gps,
-        waypoints,
-        metrics
-    )
-
-
-# ============================================================
-# AUTO PARSER
-# ============================================================
-
-def parse_uploaded_log(
-    uploaded_file
-):
-
-    name = (
-        uploaded_file.name
-        .lower()
-    )
-
-    if (
-        name.endswith(
-            (
-                ".ulg",
-                ".ulog"
-            )
-        )
-    ):
-
-        return extract_ulog(
-            uploaded_file
-        )
-
-    elif (
-        name.endswith(
-            ".tlog"
-        )
-    ):
-
-        return extract_tlog(
-            uploaded_file
-        )
-
-    else:
-
-        raise Exception(
-            "Unsupported log"
-        )
-    
-
-# 1. Page Configuration & Aerospace Dark Theme
-st.set_page_config(page_title="Flyght Cloud | Dual-Log Analytics", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Achuk Telemetry Suite | Redon Systems", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
@@ -2035,205 +2512,302 @@ st.markdown("""
     .trainee-banner { background-color: #0c1a2d; border: 1px solid #1e293b; border-radius: 8px; padding: 20px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
     .badge-on { background-color: rgba(16, 185, 129, 0.15); color: #10b981; padding: 5px 12px; border-radius: 15px; font-size: 0.8rem; border: 1px solid rgba(16, 185, 129, 0.3); font-weight: 600; margin-left: 8px;}
     .badge-off { background-color: rgba(239, 68, 68, 0.1); color: #ef4444; padding: 5px 12px; border-radius: 15px; font-size: 0.8rem; border: 1px solid rgba(239, 68, 68, 0.3); font-weight: 600; margin-left: 8px;}
-    .emergency-box { background-color: #0c1a2d; border: 1px solid #334155; border-radius: 8px; padding: 20px; }
-    .timeline-item { font-size: 0.85rem; padding: 4px 0; border-left: 2px solid #1e293b; padding-left: 12px; margin-left: 6px; }
+    .plan-box { background-color: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; padding: 10px; text-align: center; margin-bottom: 15px;}
     </style>
 """, unsafe_allow_html=True)
 
+# ============================================================
+# HELPERS & PARSERS
+# ============================================================
 
+def safe_topic(ulog, topic):
+    try:
+        ds = ulog.get_dataset(topic)
+        return pd.DataFrame(ds.data)
+    except:
+        return pd.DataFrame()
 
-def render_empty_state(module_name, required_file):
-    st.markdown(f'<div class="offline-box"><h3 style="color: #475569; margin-bottom: 5px;">⚠️ {module_name} OFFLINE</h3><p class="offline-text">Awaiting <code>{required_file}</code> file upload for this trainee.</p></div>', unsafe_allow_html=True)
+def norm_ts(df):
+    if "timestamp" in df.columns:
+        df["timestamp"] = (df["timestamp"] - df["timestamp"].iloc[0]) / 1e6
+    return df
 
-# 3. Sidebar UI & Unified Filename Ingestion
-st.sidebar.markdown("<h3 style='color: #38bdf8; margin-top: 0;'>FLYGHT CLOUD</h3>", unsafe_allow_html=True)
+def parse_mission_plan(file_bytes):
+    """Parses standard QGroundControl .plan files (JSON format)"""
+    try:
+        data = json.loads(file_bytes.decode('utf-8'))
+        wps = []
+        seq = 1
+        if "mission" in data and "items" in data["mission"]:
+            for item in data["mission"]["items"]:
+                # Command 16 is MAV_CMD_NAV_WAYPOINT
+                if item.get("command") == 16 and "params" in item:
+                    params = item["params"]
+                    if len(params) >= 7:
+                        wps.append({
+                            "seq": f"WP{seq}",
+                            "lat": params[4],
+                            "lon": params[5],
+                            "alt": params[6]
+                        })
+                        seq += 1
+        return pd.DataFrame(wps)
+    except Exception as e:
+        st.error(f"Error parsing .plan file: {e}")
+        return pd.DataFrame()
+
+@st.cache_resource
+def extract_ulog(file):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".ulg") as tmp:
+        tmp.write(file.getbuffer())
+        temp_path = tmp.name
+
+    ulog = ULog(temp_path)
+    attitude = safe_topic(ulog, "vehicle_attitude")
+    local_pos = safe_topic(ulog, "vehicle_local_position")
+    rates = safe_topic(ulog, "vehicle_rates_setpoint")
+
+    if attitude.empty: raise Exception("vehicle_attitude missing")
+
+    attitude = norm_ts(attitude)
+    telemetry = pd.DataFrame()
+    telemetry["Time (s)"] = attitude["timestamp"]
+
+    q0, q1, q2, q3 = attitude["q[0]"], attitude["q[1]"], attitude["q[2]"], attitude["q[3]"]
+    telemetry["Roll ACT"] = np.degrees(np.arctan2(2*(q0*q1+q2*q3), 1-2*(q1*q1+q2*q2)))
+    telemetry["Pitch ACT"] = np.degrees(np.arcsin(np.clip(2*(q0*q2-q3*q1), -1, 1)))
+
+    if not rates.empty:
+        rates = norm_ts(rates)
+        roll_col = next((c for c in rates.columns if "roll" in c.lower()), None)
+        telemetry["Roll CMD"] = rates[roll_col].reindex(telemetry.index) if roll_col else telemetry["Roll ACT"]
+    else:
+        telemetry["Roll CMD"] = telemetry["Roll ACT"]
+
+    telemetry["Altitude (ft)"] = (-local_pos["z"] * 3.28084) if not local_pos.empty else 0
+    telemetry = telemetry.ffill().fillna(0)
+
+    # Metrics
+    roll_delta = telemetry["Roll CMD"] - telemetry["Roll ACT"]
+    stick_diff = np.diff(telemetry["Roll ACT"])
+    attitude_dev = np.mean(np.abs(roll_delta))
+    erratic_events = int(np.sum(np.abs(stick_diff) > 5))
+    loop_rate = max(1, int(len(telemetry)/max(0.01, telemetry["Time (s)"].iloc[-1])))
+    duration = telemetry["Time (s)"].iloc[-1]
+
+    metrics = {
+        "duration": duration,
+        "max_alt": float(telemetry["Altitude (ft)"].max()),
+        "attitude_dev": attitude_dev,
+        "erratic_events": erratic_events,
+        "loop_rate": loop_rate,
+        "smoothness": "Excellent" if erratic_events < 5 else "Fair" if erratic_events < 20 else "Poor"
+    }
+    return telemetry, metrics
+
+@st.cache_resource
+def extract_tlog(file, external_plan_df=None):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".tlog") as tmp:
+        tmp.write(file.getbuffer())
+        temp_path = tmp.name
+
+    mav = mavutil.mavlink_connection(temp_path)
+    rows, mission_rows = [], []
+
+    while True:
+        msg = mav.recv_match(blocking=False)
+        if msg is None: break
+        
+        m = msg.to_dict()
+        t = getattr(msg, "_timestamp", None)
+        if t is None: continue
+        
+        if msg.get_type() == "MISSION_ITEM":
+            mission_rows.append({"lat": msg.x, "lon": msg.y, "seq": f"WP{msg.seq}"})
+            
+        rows.append({"time": t, "type": msg.get_type(), **m})
+
+    df = pd.DataFrame(rows)
+    if df.empty: raise Exception("No telemetry")
+
+    gps = df[df.type == "GLOBAL_POSITION_INT"].copy()
+    if gps.empty: raise Exception("GPS missing")
+
+    gps["lat"] /= 1e7
+    gps["lon"] /= 1e7
+    gps["alt"] /= 1000
+    gps["time"] -= gps.time.iloc[0]
+
+    waypoints = pd.DataFrame(mission_rows)
+    
+    # Distance
+    dist = sum(geodesic((gps.lat.iloc[i-1], gps.lon.iloc[i-1]), (gps.lat.iloc[i], gps.lon.iloc[i])).meters for i in range(1, len(gps)))
+    
+    # Deviation Logic (Use external plan if provided, otherwise internal TLOG mission)
+    drift = 0
+    ref_wps = external_plan_df if (external_plan_df is not None and not external_plan_df.empty) else waypoints
+    
+    if not ref_wps.empty:
+        # Simplistic max deviation from any nearest waypoint
+        for _, pos in gps.iterrows():
+            nearest = min(geodesic((pos["lat"], pos["lon"]), (wp["lat"], wp["lon"])).meters for _, wp in ref_wps.iterrows())
+            drift = max(drift, nearest)
+
+    # Failsafe Detection
+    status = df[df["type"] == "STATUSTEXT"].copy()
+    trigger_time, rtl_time = None, None
+
+    for _, row in status.iterrows():
+        txt = str(row.to_dict()).lower()
+        if trigger_time is None and any(k in txt for k in ["failsafe", "lost", "rc loss", "gcs"]):
+            trigger_time = row["time"]
+        if trigger_time is not None and rtl_time is None and "rtl" in txt:
+            rtl_time = row["time"]
+
+    failsafe_time = (rtl_time - trigger_time) if (trigger_time and rtl_time) else 0
+
+    metrics = {
+        "duration_min": gps.time.max() / 60,
+        "distance": dist,
+        "max_drift": drift,
+        "failsafe": rtl_time is not None,
+        "failsafe_time": failsafe_time,
+        "geofence": "Green Zone" if drift < 20 else "Boundary Excursion"
+    }
+    return gps, waypoints, metrics
+
+def parse_uploaded_log(uploaded_file, external_plan=None):
+    name = uploaded_file.name.lower()
+    if name.endswith((".ulg", ".ulog", ".bin")):
+        return extract_ulog(uploaded_file)
+    elif name.endswith(".tlog"):
+        return extract_tlog(uploaded_file, external_plan)
+    else:
+        raise Exception("Unsupported log")
+
+# ============================================================
+# SIDEBAR INGESTION & UI ROUTING
+# ============================================================
+st.sidebar.markdown("<h3 style='color: #38bdf8; margin-top: 0;'>REDON SYSTEMS • ACHUK CLOUD</h3>", unsafe_allow_html=True)
+st.sidebar.caption("PX4 SITL & HARDWARE TELEMETRY ANALYZER")
 st.sidebar.markdown("---")
 
-# =====================================================
-# FILE INGESTION + TELEMETRY LOADING
-# =====================================================
+# 1. Mission Plan Vault
+st.sidebar.markdown("<div style='color: #38bdf8; font-size: 0.75rem; font-weight:700; margin-bottom: 5px;'>🗺️ MISSION PLAN VAULT</div>", unsafe_allow_html=True)
+plan_file = st.sidebar.file_uploader("Upload .plan (JSON)", type=["plan"], label_visibility="collapsed")
 
-uploaded_files = st.sidebar.file_uploader(
-    "DROP .ulog / .ulg / .tlog / .bin",
-    type=[
-        "ulog",
-        "ulg",
-        "tlog",
-        "bin"
-    ],
-    accept_multiple_files=True,
-    label_visibility="collapsed"
-)
+if plan_file:
+    st.session_state['active_plan'] = parse_mission_plan(plan_file.getvalue())
+    st.session_state['plan_name'] = plan_file.name
 
+if 'active_plan' in st.session_state and not st.session_state['active_plan'].empty:
+    st.sidebar.markdown(f"<div class='plan-box'>✅ <strong>{st.session_state['plan_name']}</strong> loaded with {len(st.session_state['active_plan'])} Waypoints.</div>", unsafe_allow_html=True)
+    if st.sidebar.button("🗑️ Remove Mission Plan", use_container_width=True):
+        del st.session_state['active_plan']
+        del st.session_state['plan_name']
+        st.rerun()
+
+st.sidebar.markdown("---")
+
+# 2. Flight Log Ingestion
+st.sidebar.markdown("<div style='color: #38bdf8; font-size: 0.75rem; font-weight:700; margin-bottom: 5px;'>🛸 INGEST TELEMETRY DATA</div>", unsafe_allow_html=True)
+uploaded_files = st.sidebar.file_uploader("DROP .ulog / .tlog", type=["ulog", "ulg", "tlog", "bin"], accept_multiple_files=True, label_visibility="collapsed")
+
+# Data Structure: trainees[TraineeName][FlightName] = { ".ulg": file, ".tlog": file }
 trainees = {}
 
 if uploaded_files:
-
     for f in uploaded_files:
+        base_name = os.path.splitext(f.name)[0]
+        ext = os.path.splitext(f.name)[1].lower()
+        
+        # Parse TraineeName_Flight1 logic
+        if "_" in base_name:
+            parts = base_name.split("_", 1)
+            trainee_name = parts[0].replace("-", " ").title()
+            flight_name = parts[1].replace("-", " ").title()
+        else:
+            trainee_name = base_name.replace("-", " ").title()
+            flight_name = "Session 1"
 
-        trainee = (
-            os.path.splitext(
-                f.name
-            )[0]
-            .replace("_"," ")
-            .replace("-"," ")
-            .title()
-        )
-
-        ext = (
-            os.path.splitext(
-                f.name
-            )[1]
-            .lower()
-        )
-
-        if trainee not in trainees:
-
-            trainees[
-                trainee
-            ] = {}
-
-        trainees[
-            trainee
-        ][ext] = f
-
+        if trainee_name not in trainees: trainees[trainee_name] = {}
+        if flight_name not in trainees[trainee_name]: trainees[trainee_name][flight_name] = {}
+        
+        trainees[trainee_name][flight_name][ext] = f
 
 if not trainees:
-
-    st.title(
-        "System Standby"
-    )
-
-    st.info(
-        "Upload telemetry logs"
-    )
-
+    st.title("System Standby")
+    st.info("Upload logs in the format `TraineeName_Flight1.tlog` to populate the evaluation engine.")
     st.stop()
 
+st.sidebar.markdown("---")
+st.sidebar.markdown("<div style='color: #38bdf8; font-size: 0.75rem; font-weight:700; margin-bottom: 10px;'>👤 TRAINEE ROSTER</div>", unsafe_allow_html=True)
+selected_trainee = st.sidebar.radio("Active Profiles", list(trainees.keys()), label_visibility="collapsed")
 
-selected_trainee = st.sidebar.radio(
+st.sidebar.markdown("<div style='color: #38bdf8; font-size: 0.75rem; font-weight:700; margin-top: 15px; margin-bottom: 10px;'>🛫 FLIGHT SESSIONS</div>", unsafe_allow_html=True)
+flight_list = list(trainees[selected_trainee].keys())
+selected_flight = st.sidebar.selectbox("Select Flight Log", flight_list, label_visibility="collapsed")
 
-    "Active Profiles",
+# ============================================================
+# DATA EXTRACTION
+# ============================================================
+flight_files = trainees[selected_trainee][selected_flight]
 
-    list(
-        trainees.keys()
-    ),
-
-    label_visibility="collapsed"
-)
-
-
-profile = trainees[
-    selected_trainee
-]
-
-
-ulg_data = None
-ulg_metrics = None
-
-tlog_data = None
-tlog_metrics = None
-
-tlog_wp=pd.DataFrame()
-
+ulg_data, ulg_metrics = None, None
+tlog_data, tlog_metrics, tlog_wp = None, None, pd.DataFrame()
+external_plan_df = st.session_state.get('active_plan', None)
 
 try:
-
-    if (
-        ".ulg"
-        in
-        profile
-    ):
-
-        ulg_data, ulg_metrics = (
-
-            parse_uploaded_log(
-
-                profile[
-                    ".ulg"
-                ]
-
-            )
-
-        )
-
-    elif (
-
-        ".ulog"
-        in
-        profile
-
-    ):
-
-        ulg_data, ulg_metrics = (
-
-            parse_uploaded_log(
-
-                profile[
-                    ".ulog"
-                ]
-
-            )
-
-        )
-
-
+    ulg_key = next((k for k in flight_files if k in [".ulg", ".ulog", ".bin"]), None)
+    if ulg_key:
+        ulg_data, ulg_metrics = parse_uploaded_log(flight_files[ulg_key])
 except Exception as e:
-
-    st.error(
-        f"ULOG Error: {e}"
-    )
-
+    st.error(f"ULOG Error: {e}")
 
 try:
-
-    if (
-        ".tlog"
-        in
-        profile
-    ):
-
-        tlog_data, tlog_wp, tlog_metrics = (
-            parse_uploaded_log(
-                profile[".tlog"]
-            )
-        )
-
-
+    if ".tlog" in flight_files:
+        tlog_data, tlog_wp, tlog_metrics = parse_uploaded_log(flight_files[".tlog"], external_plan_df)
 except Exception as e:
+    st.error(f"TLOG Error: {e}")
 
-    st.error(
-        f"TLOG Error: {e}"
-    )
+has_ulg = ulg_data is not None
+has_tlog = tlog_data is not None
 
-
-has_ulg = (
-
-    ulg_data
-    is not None
-
-)
-
-has_tlog = (
-
-    tlog_data
-    is not None
-
-)
-
+# ============================================================
+# MAIN APPLICATION WORKSPACE
+# ============================================================
 ulg_badge = '<span class="badge-on">⚙️ .ULOG ACTIVE</span>' if has_ulg else '<span class="badge-off">⚙️ .ULOG MISSING</span>'
 tlog_badge = '<span class="badge-on">📡 .TLOG ACTIVE</span>' if has_tlog else '<span class="badge-off">📡 .TLOG MISSING</span>'
 
-st.markdown(f'<div class="trainee-banner"><div><h3 style="margin:0; color: white; font-weight:700;">{selected_trainee}</h3><p style="margin:5px 0 0 0; color: #64748b; font-size: 0.85rem;">COMBINED FLIGHT ANALYSIS PROFILE</p></div><div>{ulg_badge} {tlog_badge}</div></div>', unsafe_allow_html=True)
+st.markdown(f"""
+    <div class="trainee-banner">
+        <div>
+            <h3 style="margin:0; color: white; font-weight:700;">{selected_trainee}</h3>
+            <p style="margin:5px 0 0 0; color: #64748b; font-size: 0.85rem; letter-spacing: 0.5px;">ACTIVE CONTEXT: {selected_flight.upper()}</p>
+        </div>
+        <div>{ulg_badge} {tlog_badge}</div>
+    </div>
+""", unsafe_allow_html=True)
 
-tab1, tab2, tab3 = st.tabs(["⚙️ MECHANICAL PROFICIENCY .ULOG", "📡 GCS MISSION COORDINATION .TLOG", "🛡️ DGCA OFFICIAL AUDIT REPORT"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "⚙️ MECHANICAL PROFICIENCY .ULOG", 
+    "📡 GCS MISSION COORDINATION .TLOG", 
+    "🛡️ DGCA OFFICIAL AUDIT REPORT",
+    "📈 OVERALL TRAINEE HISTORY"
+])
 
+def render_empty_state(module_name, required_file):
+    st.markdown(f'<div class="offline-box"><h3 style="color: #475569; margin-bottom: 5px;">⚠️ {module_name} OFFLINE</h3><p class="offline-text">Awaiting <code>{required_file}</code> file upload for this session.</p></div>', unsafe_allow_html=True)
+
+# ---------------------------------------------------------
+# TAB 1: ULOG
+# ---------------------------------------------------------
 with tab1:
     if has_ulg:
         c1, c2, c3 = st.columns(3)
         with c1: st.metric("PILOT SMOOTHNESS FACTOR", ulg_metrics['smoothness'], f"{ulg_metrics['erratic_events']} ERRATIC EVENTS", delta_color="inverse" if ulg_metrics['erratic_events'] > 2 else "normal")
         with c2: st.metric("ATTITUDE DEVIATION INDEX", f"{ulg_metrics['attitude_dev']:.2f}°", "MEAN CMD ➔ ACTUAL DELTA", delta_color="off")
-        with c3: st.metric("CONTROL LOOP RATE", f"{ulg_metrics['loop_rate']} Hz", "PX4 IMU FILTER ACTIVE", delta_color="off")
+        with c3: st.metric("CONTROL LOOP RATE", f"{ulg_metrics['loop_rate']} Hz", "IMU FILTER ACTIVE", delta_color="off")
             
         fig_mech = go.Figure()
         fig_mech.add_trace(go.Scatter(x=ulg_data["Time (s)"], y=ulg_data["Roll CMD"], mode='lines', name='Roll Target', line=dict(color='#0ea5e9')))
@@ -2245,180 +2819,46 @@ with tab1:
     else:
         render_empty_state("MECHANICAL PROFICIENCY", ".ulog / .bin")
 
+# ---------------------------------------------------------
+# TAB 2: TLOG
+# ---------------------------------------------------------
 with tab2:
     if has_tlog:
         col_map, col_time = st.columns([2.2, 1])
         with col_map:
-            st.markdown("<div style='color: #38bdf8; font-size:0.9rem; font-weight:600; margin-bottom: 10px; letter-spacing: 1px;'>2D FLIGHT PATH • PLANNED VS ACTUAL</div>", unsafe_allow_html=True)
+            map_title = "2D FLIGHT PATH • PLANNED VS ACTUAL (EXTERNAL PLAN OVERLAY)" if external_plan_df is not None else "2D FLIGHT PATH • PLANNED VS ACTUAL (INTERNAL GCS)"
+            st.markdown(f"<div style='color: #38bdf8; font-size:0.9rem; font-weight:600; margin-bottom: 10px; letter-spacing: 1px;'>{map_title}</div>", unsafe_allow_html=True)
             
             fig_spatial = go.Figure()
-            # =====================================================
-            # ACTUAL TRAJECTORY
-            # =====================================================
+            
+            # 1. Plot the actual path
+            fig_spatial.add_trace(go.Scatter(x=tlog_data["lon"], y=tlog_data["lat"], mode="lines", name="Flight Path (Actual)", line=dict(color='#ec4899', width=2)))
+            
+            # 2. Plot the external mission plan if it exists
+            if external_plan_df is not None and not external_plan_df.empty:
+                fig_spatial.add_trace(go.Scatter(x=external_plan_df["lon"], y=external_plan_df["lat"], mode="lines+markers+text", text=external_plan_df["seq"], textposition="top center", name="Vault Plan (.plan)", line=dict(color='#0ea5e9', dash='dash', width=2), marker=dict(color='#38bdf8', size=8)))
+            # 3. Otherwise plot the internal TLOG waypoints
+            elif not tlog_wp.empty:
+                fig_spatial.add_trace(go.Scatter(x=tlog_wp["lon"], y=tlog_wp["lat"], mode="markers+text", text=tlog_wp["seq"], textposition="top center", name="TLOG Waypoints", marker=dict(color='#eab308', size=8)))
 
-            fig_spatial.add_trace(
-
-                go.Scatter(
-
-                    x=tlog_data["lon"],
-
-                    y=tlog_data["lat"],
-
-                    mode="lines",
-
-                    name="Flight Path"
-
-                )
-
-            )
-
-
-            # =====================================================
-            # ADD WAYPOINTS HERE
-            # =====================================================
-
-            if (
-                tlog_wp is not None
-                and
-                not tlog_wp.empty
-            ):
-
-                fig_spatial.add_trace(
-
-                    go.Scatter(
-
-                        x=tlog_wp["lon"],
-
-                        y=tlog_wp["lat"],
-
-                        mode="markers+text",
-
-                        text=tlog_wp["seq"],
-
-                        textposition="top center",
-
-                        name="WAYPOINTS"
-
-                    )
-
-                )
-
-
-            # =====================================================
-            # START MARKER
-            # =====================================================
-
-            fig_spatial.add_trace(
-
-                go.Scatter(
-
-                    x=[
-                        tlog_data["lon"].iloc[0]
-                    ],
-
-                    y=[
-                        tlog_data["lat"].iloc[0]
-                    ],
-
-                    mode="markers+text",
-
-                    text=["HOME"],
-
-                    name="START"
-
-                )
-
-            )
-
-
-            # =====================================================
-            # END MARKER
-            # =====================================================
-
-            fig_spatial.add_trace(
-
-                go.Scatter(
-
-                    x=[
-                        tlog_data["lon"].iloc[-1]
-                    ],
-
-                    y=[
-                        tlog_data["lat"].iloc[-1]
-                    ],
-
-                    mode="markers+text",
-
-                    text=["LAND"],
-
-                    name="END"
-
-                )
-
-            )
-
-
-            st.plotly_chart(
-                fig_spatial,
-                use_container_width=True
-            )
+            fig_spatial.add_trace(go.Scatter(x=[tlog_data["lon"].iloc[0]], y=[tlog_data["lat"].iloc[0]], mode="markers+text", text=["START"], name="START", marker=dict(color='#10b981', size=10)))
+            fig_spatial.add_trace(go.Scatter(x=[tlog_data["lon"].iloc[-1]], y=[tlog_data["lat"].iloc[-1]], mode="markers+text", text=["LAND"], name="LAND", marker=dict(color='#ef4444', size=10)))
+            
+            fig_spatial.update_layout(plot_bgcolor='#050e1a', paper_bgcolor='rgba(0,0,0,0)', font=dict(color='#64748b'), margin=dict(l=10, r=10, t=10, b=10), xaxis=dict(showgrid=True, gridcolor='#1e293b', zeroline=False, showticklabels=False), yaxis=dict(showgrid=True, gridcolor='#1e293b', zeroline=False, showticklabels=False, scaleanchor="x", scaleratio=1), legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="left", x=0), height=550)
+            st.plotly_chart(fig_spatial, use_container_width=True)
             
         with col_time:
-            st.metric(
-
-                "FAILSAFE",
-
-                (
-
-                    "PASS"
-
-                    if not tlog_metrics["failsafe"]
-
-                    else
-
-                    "RTL DETECTED"
-
-                )
-
-            )
-
-            st.metric(
-
-                "MISSION TIME",
-
-                f'{tlog_metrics["duration_min"]:.2f} min'
-
-            )
-
-            st.metric(
-
-                "DISTANCE",
-
-                f'{tlog_metrics["distance"]:.1f} m'
-
-            )
-
-            st.metric(
-
-                "MAX DRIFT",
-
-                f'{tlog_metrics["max_drift"]:.1f} m'
-
-            )
-            st.markdown("### Emergency Assessment")
-
-            st.metric(
-                "Failsafe Status",
-                (
-                    "RTL DETECTED"
-                    if tlog_metrics["failsafe"]
-                    else
-                    "NO FAILSAFE"
-                )
-            )
+            st.metric("FAILSAFE", "RTL DETECTED" if tlog_metrics["failsafe"] else "PASS", delta_color="inverse" if tlog_metrics["failsafe"] else "normal")
+            st.metric("MISSION TIME", f'{tlog_metrics["duration_min"]:.2f} min')
+            st.metric("WAYPOINT COUNT (REF)", len(external_plan_df) if external_plan_df is not None else len(tlog_wp))
+            st.metric("DISTANCE TRAVELED", f'{tlog_metrics["distance"]:.1f} m')
+            st.metric("MAX PLAN DEVIATION", f'{tlog_metrics["max_drift"]:.1f} m', "DRIFT FROM PLANNED ROUTE")
     else:
         render_empty_state("GCS MISSION COORDINATION", ".tlog")
 
+# ---------------------------------------------------------
+# TAB 3: AUDIT REPORT
+# ---------------------------------------------------------
 with tab3:
     st.markdown("<h4 style='color: #38bdf8; margin-bottom: 25px;'>Combined Flight Audit & Compliance Record</h4>", unsafe_allow_html=True)
     aud_c1, aud_c2 = st.columns(2)
@@ -2446,30 +2886,76 @@ with tab3:
             st.metric("GEO-FENCING VALIDATOR", "N/A", "Requires .TLOG data")
             
     with aud_c4:
-
         if has_tlog:
-
-            st.metric(
-
-                "FAILSAFE",
-
-                (
-
-                    "PASS"
-
-                    if not tlog_metrics["failsafe"]
-
-                    else
-
-                    "RTL DETECTED"
-
-                )
-
-            )
-
+            st.metric("FAILSAFE", "RTL DETECTED" if tlog_metrics["failsafe"] else "PASS", delta_color="inverse" if tlog_metrics["failsafe"] else "normal")
         else:
+            st.metric("FAILSAFE", "N/A")
 
-            st.metric(
-                "FAILSAFE",
-                "N/A"
-            )
+# ---------------------------------------------------------
+# TAB 4: OVERALL TRAINEE HISTORY
+# ---------------------------------------------------------
+with tab4:
+    st.markdown(f"<h4 style='color: #38bdf8; margin-bottom: 5px;'>Comprehensive Career Metrics: {selected_trainee}</h4>", unsafe_allow_html=True)
+    st.caption("Aggregated performance analytics across all uploaded flight sessions.")
+    
+    # Compile historical data
+    history_records = []
+    
+    for fname, ffiles in trainees[selected_trainee].items():
+        record = {"Flight Session": fname, "Max Altitude (ft)": None, "Attitude Deviation (°)": None, "Erratic Events": None, "Duration (min)": None, "Max Plan Deviation (m)": None, "Failsafe Triggered": "Unknown"}
+        
+        # We must re-extract silently or rely on cached functions
+        # For a production app, robust caching is required here. Streamlit @st.cache_resource handles this efficiently.
+        u_key = next((k for k in ffiles if k in [".ulg", ".ulog", ".bin"]), None)
+        if u_key:
+            try:
+                _, u_met = parse_uploaded_log(ffiles[u_key])
+                record["Max Altitude (ft)"] = round(u_met["max_alt"], 2)
+                record["Attitude Deviation (°)"] = round(u_met["attitude_dev"], 2)
+                record["Erratic Events"] = u_met["erratic_events"]
+            except: pass
+            
+        if ".tlog" in ffiles:
+            try:
+                _, _, t_met = parse_uploaded_log(ffiles[".tlog"], external_plan_df)
+                record["Duration (min)"] = round(t_met["duration_min"], 2)
+                record["Max Plan Deviation (m)"] = round(t_met["max_drift"], 2)
+                record["Failsafe Triggered"] = "Yes" if t_met["failsafe"] else "No"
+            except: pass
+            
+        history_records.append(record)
+        
+    df_history = pd.DataFrame(history_records).sort_values("Flight Session").reset_index(drop=True)
+    
+    if len(df_history) > 1:
+        hist_c1, hist_c2 = st.columns(2)
+        with hist_c1:
+            fig_trend1 = go.Figure(data=go.Scatter(x=df_history["Flight Session"], y=df_history["Attitude Deviation (°)"], mode='lines+markers', line=dict(color='#0ea5e9', width=3)))
+            fig_trend1.update_layout(title="Learning Curve: Attitude Deviation Trend", plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#94a3b8'), yaxis_title="Mean Delta (°)", margin=dict(l=10, r=10, t=50, b=10))
+            fig_trend1.update_xaxes(showgrid=True, gridcolor='#1e293b')
+            fig_trend1.update_yaxes(showgrid=True, gridcolor='#1e293b')
+            st.plotly_chart(fig_trend1, use_container_width=True)
+            
+        with hist_c2:
+            fig_trend2 = go.Figure(data=go.Bar(x=df_history["Flight Session"], y=df_history["Erratic Events"], marker_color='#ec4899'))
+            fig_trend2.update_layout(title="Mechanical Control: Erratic Events Count", plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#94a3b8'), yaxis_title="Event Count", margin=dict(l=10, r=10, t=50, b=10))
+            fig_trend2.update_xaxes(showgrid=True, gridcolor='#1e293b')
+            fig_trend2.update_yaxes(showgrid=True, gridcolor='#1e293b')
+            st.plotly_chart(fig_trend2, use_container_width=True)
+
+    st.markdown("### Exportable KPI Matrix")
+    st.dataframe(df_history, use_container_width=True)
+    
+    # Excel Export Generation
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        df_history.to_excel(writer, index=False, sheet_name='Trainee_Performance')
+    buffer.seek(0)
+    
+    st.download_button(
+        label="📥 Download Full KPI Report (Excel)",
+        data=buffer,
+        file_name=f"{selected_trainee.replace(' ', '_')}_Flight_Report.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )
