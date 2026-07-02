@@ -444,7 +444,7 @@
 #                 color_discrete_sequence=["#0284c7", "#f43f5e"]
 #             )
 #             fig_attitude.update_layout(plot_bgcolor="rgba(0,0,0,0)")
-#             st.plotly_chart(fig_attitude, use_container_width=True)
+#             st.plotly_chart(fig_attitude, width='stretch')
             
 #         with fig_col2:
 #             # Map Stick input variations
@@ -456,7 +456,7 @@
 #                 color_discrete_sequence=["#10b981"]
 #             )
 #             fig_sticks.update_layout(plot_bgcolor="rgba(0,0,0,0)")
-#             st.plotly_chart(fig_sticks, use_container_width=True)
+#             st.plotly_chart(fig_sticks, width='stretch')
             
 #     else:
 #         st.markdown("<div class='metric-title'>Mission Trainee Navigation Accuracy Profiles (.TLOG Engine)</div>", unsafe_allow_html=True)
@@ -480,7 +480,7 @@
 #                 line=dict(dash='dash', color='#64748b')
 #             )
 #             fig_map.update_layout(plot_bgcolor="rgba(0,0,0,0)")
-#             st.plotly_chart(fig_map, use_container_width=True)
+#             st.plotly_chart(fig_map, width='stretch')
             
 #         with fig_col2:
 #             # Reconstruct Vertical flight profile trends
@@ -493,11 +493,11 @@
 #             )
 #             fig_alt.add_hline(y=400, line_dash="dash", line_color="#ef4444", annotation_text="DGCA Max Ceiling Threshold")
 #             fig_alt.update_layout(plot_bgcolor="rgba(0,0,0,0)")
-#             st.plotly_chart(fig_alt, use_container_width=True)
+#             st.plotly_chart(fig_alt, width='stretch')
 
 #     # 6. Detailed Tabular Raw Log Excerpts
 #     with st.expander("Inspect Raw Decoded Data Matrix Elements"):
-#         st.dataframe(telemetry_data, use_container_width=True)
+#         st.dataframe(telemetry_data, width='stretch')
 
 
 # Version 3
@@ -740,7 +740,7 @@
 #         )
 #         fig_mech.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#1e293b')
 #         fig_mech.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#1e293b')
-#         st.plotly_chart(fig_mech, use_container_width=True)
+#         st.plotly_chart(fig_mech, width='stretch')
 
 #     # ---------------- TAB 2: GCS MISSION COORDINATION ----------------
 #     with tab2:
@@ -760,7 +760,7 @@
 #                 yaxis=dict(showgrid=True, gridcolor='#1e293b', zeroline=False),
 #                 height=400, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
 #             )
-#             st.plotly_chart(fig_spatial, use_container_width=True)
+#             st.plotly_chart(fig_spatial, width='stretch')
             
 #         with col_timeline:
 #             is_breached = log_metrics["failsafe_time"] > 6.0
@@ -1057,7 +1057,7 @@
 #             fig_mech.update_layout(title="ACTUATOR OUTPUT VS COMMAND", plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#94a3b8'), margin=dict(l=10, r=10, t=50, b=10))
 #             fig_mech.update_xaxes(showgrid=True, gridcolor='#1e293b')
 #             fig_mech.update_yaxes(showgrid=True, gridcolor='#1e293b')
-#             st.plotly_chart(fig_mech, use_container_width=True)
+#             st.plotly_chart(fig_mech, width='stretch')
 #         else:
 #             render_empty_state("MECHANICAL PROFICIENCY", ".ulog / .bin")
 
@@ -1116,7 +1116,7 @@
 #                     align="center", bgcolor="#0c1a2d", bordercolor="#1e293b", borderwidth=1, borderpad=5
 #                 )
 
-#                 st.plotly_chart(fig_spatial, use_container_width=True)
+#                 st.plotly_chart(fig_spatial, width='stretch')
                 
 #             with col_time:
 #                 is_breached = tlog_metrics["failsafe_time"] > 6.0
@@ -1371,7 +1371,7 @@
 #             fig_mech.update_layout(title="ACTUATOR OUTPUT VS COMMAND", plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#94a3b8'), margin=dict(l=10, r=10, t=50, b=10))
 #             fig_mech.update_xaxes(showgrid=True, gridcolor='#1e293b')
 #             fig_mech.update_yaxes(showgrid=True, gridcolor='#1e293b')
-#             st.plotly_chart(fig_mech, use_container_width=True)
+#             st.plotly_chart(fig_mech, width='stretch')
 #         else:
 #             render_empty_state("MECHANICAL PROFICIENCY", ".ulog / .bin")
 
@@ -1416,7 +1416,7 @@
 #                     align="center", bgcolor="#0c1a2d", bordercolor="#1e293b", borderwidth=1, borderpad=5
 #                 )
 
-#                 st.plotly_chart(fig_spatial, use_container_width=True)
+#                 st.plotly_chart(fig_spatial, width='stretch')
                 
 #             with col_time:
 #                 is_breached = tlog_metrics["failsafe_time"] > 6.0
@@ -2241,7 +2241,7 @@
 #         fig_mech.update_layout(title="ACTUATOR OUTPUT VS COMMAND", plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#94a3b8'), margin=dict(l=10, r=10, t=50, b=10))
 #         fig_mech.update_xaxes(showgrid=True, gridcolor='#1e293b')
 #         fig_mech.update_yaxes(showgrid=True, gridcolor='#1e293b')
-#         st.plotly_chart(fig_mech, use_container_width=True)
+#         st.plotly_chart(fig_mech, width='stretch')
 #     else:
 #         render_empty_state("MECHANICAL PROFICIENCY", ".ulog / .bin")
 
@@ -2360,7 +2360,7 @@
 
 #             st.plotly_chart(
 #                 fig_spatial,
-#                 use_container_width=True
+#                 width='stretch'
 #             )
             
 #         with col_time:
@@ -2702,7 +2702,7 @@ if plan_file:
 
 if 'active_plan' in st.session_state and not st.session_state['active_plan'].empty:
     st.sidebar.markdown(f"<div class='plan-box'>✅ <strong>{st.session_state['plan_name']}</strong> loaded with {len(st.session_state['active_plan'])} Waypoints.</div>", unsafe_allow_html=True)
-    if st.sidebar.button("🗑️ Remove Mission Plan", use_container_width=True):
+    if st.sidebar.button("🗑️ Remove Mission Plan", width='stretch'):
         del st.session_state['active_plan']
         del st.session_state['plan_name']
         st.rerun()
@@ -2815,7 +2815,7 @@ with tab1:
         fig_mech.update_layout(title="ACTUATOR OUTPUT VS COMMAND", plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#94a3b8'), margin=dict(l=10, r=10, t=50, b=10))
         fig_mech.update_xaxes(showgrid=True, gridcolor='#1e293b')
         fig_mech.update_yaxes(showgrid=True, gridcolor='#1e293b')
-        st.plotly_chart(fig_mech, use_container_width=True)
+        st.plotly_chart(fig_mech, width='stretch')
     else:
         render_empty_state("MECHANICAL PROFICIENCY", ".ulog / .bin")
 
@@ -2845,7 +2845,7 @@ with tab2:
             fig_spatial.add_trace(go.Scatter(x=[tlog_data["lon"].iloc[-1]], y=[tlog_data["lat"].iloc[-1]], mode="markers+text", text=["LAND"], name="LAND", marker=dict(color='#ef4444', size=10)))
             
             fig_spatial.update_layout(plot_bgcolor='#050e1a', paper_bgcolor='rgba(0,0,0,0)', font=dict(color='#64748b'), margin=dict(l=10, r=10, t=10, b=10), xaxis=dict(showgrid=True, gridcolor='#1e293b', zeroline=False, showticklabels=False), yaxis=dict(showgrid=True, gridcolor='#1e293b', zeroline=False, showticklabels=False, scaleanchor="x", scaleratio=1), legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="left", x=0), height=550)
-            st.plotly_chart(fig_spatial, use_container_width=True)
+            st.plotly_chart(fig_spatial, width='stretch')
             
         with col_time:
             st.metric("FAILSAFE", "RTL DETECTED" if tlog_metrics["failsafe"] else "PASS", delta_color="inverse" if tlog_metrics["failsafe"] else "normal")
@@ -2934,17 +2934,17 @@ with tab4:
             fig_trend1.update_layout(title="Learning Curve: Attitude Deviation Trend", plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#94a3b8'), yaxis_title="Mean Delta (°)", margin=dict(l=10, r=10, t=50, b=10))
             fig_trend1.update_xaxes(showgrid=True, gridcolor='#1e293b')
             fig_trend1.update_yaxes(showgrid=True, gridcolor='#1e293b')
-            st.plotly_chart(fig_trend1, use_container_width=True)
+            st.plotly_chart(fig_trend1, width='stretch')
             
         with hist_c2:
             fig_trend2 = go.Figure(data=go.Bar(x=df_history["Flight Session"], y=df_history["Erratic Events"], marker_color='#ec4899'))
             fig_trend2.update_layout(title="Mechanical Control: Erratic Events Count", plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#94a3b8'), yaxis_title="Event Count", margin=dict(l=10, r=10, t=50, b=10))
             fig_trend2.update_xaxes(showgrid=True, gridcolor='#1e293b')
             fig_trend2.update_yaxes(showgrid=True, gridcolor='#1e293b')
-            st.plotly_chart(fig_trend2, use_container_width=True)
+            st.plotly_chart(fig_trend2, width='stretch')
 
     st.markdown("### Exportable KPI Matrix")
-    st.dataframe(df_history, use_container_width=True)
+    st.dataframe(df_history, width='stretch')
     
     # Excel Export Generation
     buffer = io.BytesIO()
@@ -2957,5 +2957,5 @@ with tab4:
         data=buffer,
         file_name=f"{selected_trainee.replace(' ', '_')}_Flight_Report.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True
+        width='stretch'
     )
