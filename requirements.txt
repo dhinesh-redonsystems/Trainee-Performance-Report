@@ -5,4 +5,3 @@ google-genai
 pymavlink
 pyulog
 geopy
-openpyxl
