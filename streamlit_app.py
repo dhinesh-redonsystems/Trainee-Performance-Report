@@ -2947,15 +2947,15 @@ with tab4:
     st.dataframe(df_history, width='stretch')
     
     # Excel Export Generation
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        df_history.to_excel(writer, index=False, sheet_name='Trainee_Performance')
-    buffer.seek(0)
+    # buffer = io.BytesIO()
+    # with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+    #     df_history.to_excel(writer, index=False, sheet_name='Trainee_Performance')
+    # buffer.seek(0)
     
-    st.download_button(
-        label="📥 Download Full KPI Report (Excel)",
-        data=buffer,
-        file_name=f"{selected_trainee.replace(' ', '_')}_Flight_Report.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        width='stretch'
-    )
+    # st.download_button(
+    #     label="📥 Download Full KPI Report (Excel)",
+    #     data=buffer,
+    #     file_name=f"{selected_trainee.replace(' ', '_')}_Flight_Report.xlsx",
+    #     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    #     width='stretch'
+    # )
