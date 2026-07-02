@@ -6,3 +6,4 @@ pymavlink
 pyulog
 geopy
 pyulog
+openpyxl
